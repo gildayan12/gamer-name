@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c44sms82nf4hx"
+path="res://.godot/imported/explosion-c.ogg-3f37eda93489ba3f536c9da0112eae72.oggvorbisstr"
+
+[deps]
+
+source_file="res://Assets/Packs and kits/kenney_desert-shooter-pack_1.0/Sounds/explosion-c.ogg"
+dest_files=["res://.godot/imported/explosion-c.ogg-3f37eda93489ba3f536c9da0112eae72.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

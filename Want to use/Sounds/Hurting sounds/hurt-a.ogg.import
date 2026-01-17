@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dceilclr2oklm"
+path="res://.godot/imported/hurt-a.ogg-37ff6fb04d779eb233a595704cb457df.oggvorbisstr"
+
+[deps]
+
+source_file="res://Want to use/Sounds/Hurting sounds/hurt-a.ogg"
+dest_files=["res://.godot/imported/hurt-a.ogg-37ff6fb04d779eb233a595704cb457df.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

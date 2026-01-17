@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b82lkyqap6bo4"
+path="res://.godot/imported/coin-b.ogg-76839ae1d6c4ca0266b20de34dc64e7a.oggvorbisstr"
+
+[deps]
+
+source_file="res://Want to use/Sounds/Collecting xp or coin sound/coin-b.ogg"
+dest_files=["res://.godot/imported/coin-b.ogg-76839ae1d6c4ca0266b20de34dc64e7a.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bwh6pbwap6t0n"
+path="res://.godot/imported/fall-b.ogg-5c74a9c461f5f41b34a50aa165211d50.oggvorbisstr"
+
+[deps]
+
+source_file="res://Assets/Packs and kits/kenney_desert-shooter-pack_1.0/Sounds/fall-b.ogg"
+dest_files=["res://.godot/imported/fall-b.ogg-5c74a9c461f5f41b34a50aa165211d50.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

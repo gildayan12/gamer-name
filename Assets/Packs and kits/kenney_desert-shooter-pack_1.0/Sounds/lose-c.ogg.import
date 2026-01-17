@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cc5uv72xxlh2a"
+path="res://.godot/imported/lose-c.ogg-1b06997d3440458f35e8c788f1842d4f.oggvorbisstr"
+
+[deps]
+
+source_file="res://Assets/Packs and kits/kenney_desert-shooter-pack_1.0/Sounds/lose-c.ogg"
+dest_files=["res://.godot/imported/lose-c.ogg-1b06997d3440458f35e8c788f1842d4f.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

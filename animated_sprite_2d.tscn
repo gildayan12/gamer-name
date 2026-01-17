@@ -1,0 +1,44 @@
+[gd_scene load_steps=8 format=3 uid="uid://qtsqcwjbv28p"]
+
+[ext_resource type="Texture2D" uid="uid://rgvmj1oh2mmh" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0012.png" id="1_h4qhm"]
+[ext_resource type="Texture2D" uid="uid://80qvwxka7g5j" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0013.png" id="2_jnpi6"]
+[ext_resource type="Texture2D" uid="uid://csrjd0u30jkgb" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0014.png" id="3_k2l7r"]
+[ext_resource type="Texture2D" uid="uid://de8n0fcccl7va" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0012inv.png" id="4_1a1k8"]
+[ext_resource type="Texture2D" uid="uid://bd0le4r7ypk6y" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0013inv.png" id="5_1o7gj"]
+[ext_resource type="Texture2D" uid="uid://bbqvvqkhyaws0" path="res://Want to use/Enemys (minions)/Weird rabbit/tile_0014inv.png" id="6_kvesc"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_oh278"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_h4qhm")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_jnpi6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_k2l7r")
+}],
+"loop": true,
+"name": &"default",
+"speed": 9.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("4_1a1k8")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_1o7gj")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_kvesc")
+}],
+"loop": true,
+"name": &"default_1",
+"speed": 9.0
+}]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D"]
+position = Vector2(586, 118)
+sprite_frames = SubResource("SpriteFrames_oh278")
+frame_progress = 0.9087361

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://chs6dg57qqwoy"
+path="res://.godot/imported/error-a.ogg-8dc777582b500f90122d9e4f051061bc.oggvorbisstr"
+
+[deps]
+
+source_file="res://Assets/Packs and kits/kenney_desert-shooter-pack_1.0/Sounds/error-a.ogg"
+dest_files=["res://.godot/imported/error-a.ogg-8dc777582b500f90122d9e4f051061bc.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

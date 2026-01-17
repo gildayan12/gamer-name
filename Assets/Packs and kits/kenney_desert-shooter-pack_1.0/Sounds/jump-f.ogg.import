@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://bmyi1jkyl1q6l"
+path="res://.godot/imported/jump-f.ogg-02cd0139bf16f6f6a7cb47f87078dccd.oggvorbisstr"
+
+[deps]
+
+source_file="res://Assets/Packs and kits/kenney_desert-shooter-pack_1.0/Sounds/jump-f.ogg"
+dest_files=["res://.godot/imported/jump-f.ogg-02cd0139bf16f6f6a7cb47f87078dccd.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

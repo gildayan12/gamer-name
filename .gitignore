@@ -1,0 +1,27 @@
+# Godot 4+ specific ignores
+.godot/
+*.translation
+
+# Mono-specific ignores
+.mono/
+data_*/
+mono_crash.*.json
+
+# Import cache
+.import/
+
+# Export builds
+export_presets.cfg
+
+# Android Studio
+/android/.gradle/
+/android/local.properties
+/android/
+
+# Visual Studio Code
+.vscode/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

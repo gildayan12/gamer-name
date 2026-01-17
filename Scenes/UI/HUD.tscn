@@ -1,0 +1,77 @@
+[gd_scene load_steps=2 format=3 uid="uid://hud12345"]
+
+[ext_resource type="Script" path="res://Scripts/UI/HUD.gd" id="1_script"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_script")
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -250.0
+offset_top = -150.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="HBoxDodge" type="HBoxContainer" parent="Control/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Control/VBoxContainer/HBoxDodge"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "DODGE"
+
+[node name="DodgeBar" type="ProgressBar" parent="Control/VBoxContainer/HBoxDodge"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+value = 100.0
+show_percentage = false
+
+[node name="HBoxAbility" type="HBoxContainer" parent="Control/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Control/VBoxContainer/HBoxAbility"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "NADE"
+
+[node name="AbilityBar" type="ProgressBar" parent="Control/VBoxContainer/HBoxAbility"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/fill = null
+value = 100.0
+show_percentage = false
+
+[node name="HBoxUlt" type="HBoxContainer" parent="Control/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Control/VBoxContainer/HBoxUlt"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "ULT"
+
+[node name="UltBar" type="ProgressBar" parent="Control/VBoxContainer/HBoxUlt"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+value = 0.0
