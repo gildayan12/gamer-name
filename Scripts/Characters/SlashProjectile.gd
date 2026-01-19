@@ -6,6 +6,11 @@ extends Area2D
 
 var distance_traveled: float = 0.0
 
+func _ready() -> void:
+    # Hit Enemies (Layer 3)
+    set_collision_mask_value(3, true)
+
+
 func _physics_process(delta: float) -> void:
     var move_step = speed * delta
     position += Vector2.RIGHT.rotated(rotation) * move_step

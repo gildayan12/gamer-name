@@ -7,6 +7,8 @@ var is_swinging: bool = false
 @onready var collision: CollisionShape2D = $CollisionShape2D
 
 func _ready() -> void:
+	# Hit Enemies (Layer 3)
+	set_collision_mask_value(3, true)
 	collision.disabled = true # Safe state
 
 func swing() -> void:

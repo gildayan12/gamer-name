@@ -5,6 +5,9 @@ extends Area2D
 @export var lifetime: float = 3.0
 
 func _ready() -> void:
+	# Hit Enemies (Layer 3)
+	set_collision_mask_value(3, true)
+	
 	var timer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(queue_free)
 	

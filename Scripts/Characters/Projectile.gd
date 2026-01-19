@@ -5,6 +5,11 @@ extends Area2D
 @export var lifetime: float = 2.0
 
 func _ready() -> void:
+	# Ignore Player (Layer 2)
+	set_collision_mask_value(2, false)
+	# Hit Enemies (Layer 3)
+	set_collision_mask_value(3, true)
+	
 	# Destroy bullet after 'lifetime' seconds
 	await get_tree().create_timer(lifetime).timeout
 	queue_free()

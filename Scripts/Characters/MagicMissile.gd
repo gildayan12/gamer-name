@@ -4,6 +4,11 @@ extends Area2D
 @export var damage: int = 15
 @export var range_dist: float = 600.0
 
+func _ready() -> void:
+    # Hit Enemies (Layer 3)
+    set_collision_mask_value(3, true)
+
+
 var distance_traveled: float = 0.0
 
 func _physics_process(delta: float) -> void:

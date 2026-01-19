@@ -4,6 +4,11 @@ extends Area2D
 @export var damage: int = 150
 @export var blast_radius: float = 200.0
 
+func _ready() -> void:
+	# Hit Enemies (Layer 3)
+	set_collision_mask_value(3, true)
+
+
 func _physics_process(delta: float) -> void:
 	# Rocket acceleration? For now just constant speed
 	position += Vector2.RIGHT.rotated(rotation) * speed * delta
