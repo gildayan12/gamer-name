@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="cocaine"
+config/name="ProjectRL2D"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
 
