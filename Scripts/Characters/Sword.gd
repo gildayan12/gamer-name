@@ -27,3 +27,7 @@ func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemy"):
 		if body.has_method("take_damage"):
 			body.take_damage(damage)
+			# Find player to credit ult charge
+			var player = get_tree().get_first_node_in_group("player")
+			if player and player.has_method("add_ultimate_charge"):
+				player.add_ultimate_charge(3.0)

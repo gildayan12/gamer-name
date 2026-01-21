@@ -4,6 +4,8 @@ extends Area2D
 @export var damage: int = 500
 @export var lifetime: float = 3.0
 
+var shooter_player: Node2D = null
+
 func _ready() -> void:
 	# Hit Enemies (Layer 3)
 	set_collision_mask_value(3, true)

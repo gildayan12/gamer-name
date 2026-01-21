@@ -4,7 +4,9 @@ extends Area2D
 @export var damage: int = 10
 
 func _ready() -> void:
+	add_to_group("enemy_projectile")
 	# Ignore other enemies
+
 	set_collision_layer_value(4, true) # Enemy Projectile Layer
 	set_collision_mask_value(1, true) # World
 	set_collision_mask_value(2, true) # Player
@@ -23,3 +25,17 @@ func _on_body_entered(body: Node2D) -> void:
 		queue_free()
 	elif body.name == "TileMap" or body is StaticBody2D:
 		queue_free()
+
+# Time Freeze Compatibility
+var is_frozen: bool = false
+var saved_velocity: Vector2 # Not strictly needed if using position +=, but good for physics.
+# For manual movement in _physics_process:
+
+func freeze() -> void:
+	is_frozen = true
+	set_physics_process(false)
+
+func unfreeze() -> void:
+	is_frozen = false
+	set_physics_process(true)
+

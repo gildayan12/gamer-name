@@ -1,11 +1,18 @@
 extends CharacterBody2D
 
+signal cooldown_updated(type, value_normalized)
+signal ultimate_updated(value_percent)
+signal ammo_updated(current, max_val)
+signal shield_updated(current, max_val)
+
+# ... (Existing vars)
+
 @export var speed: float = 300.0
 @export var input_enabled: bool = true # Control flag for Menus/Cutscenes
 
 @onready var visuals: Node2D = $Visuals
 @onready var body_sprite: Sprite2D = $Visuals/BodySprite
-# Slots
+
 @onready var head_sprite: Sprite2D = $Visuals/HeadSprite
 @onready var chest_sprite: Sprite2D = $Visuals/ChestSprite
 @onready var legs_sprite: Sprite2D = $Visuals/LegsSprite
@@ -13,9 +20,7 @@ extends CharacterBody2D
 
 @onready var weapon_pivot: Node2D = $Visuals/WeaponPivot
 
-# Signals for HUD
-signal cooldown_updated(type: String, progress: float) 
-signal ultimate_updated(value: float)
+
 
 # Kit System Resources
 const GRENADE_SCENE = preload("res://Scenes/Characters/Grenade.tscn")
@@ -34,6 +39,8 @@ const BEYBLADE_SCENE = preload("res://Scenes/Characters/Beyblade.tscn")
 const ENEMY_SCENE = preload("res://Scenes/Characters/Enemy.tscn")
 const TURRET_SCENE = preload("res://Scenes/Characters/EnemyTurret.tscn")
 const TANK_SCENE = preload("res://Scenes/Characters/EnemyTank.tscn")
+const BOSS_SCENE = preload("res://Scenes/Characters/EnemyBoss.tscn")
+
 
 
 enum Kit { GUN, MELEE, MAGE }
@@ -46,7 +53,7 @@ var current_ult: UltType = UltType.BARRETT
 var can_dodge: bool = true
 var can_grenade: bool = true
 var can_shockwave: bool = true
-var ultimate_charge: float = 100.0 
+var ultimate_charge: float = 0.0 
 var is_dodging: bool = false
 const MAX_THROW_DIST = 400.0 
 var max_hp: float = 100.0
@@ -54,9 +61,21 @@ var hp: float = 100.0
 var is_spinning: bool = false 
 var is_roid_raging: bool = false
 var can_chain_lightning: bool = true
-var damage_modifier: float = 1.0
-var speed_modifier: float = 1.0
+# Modifiers
+var weapon_damage_modifier: float = 1.0 # Wave Upgrade (Weapon Only)
+var global_damage_modifier: float = 1.0 # Global Arena Upgrade (Str)
+var ability_damage_modifier: float = 1.0 # Wave Ability Power
+
+var move_speed_modifier: float = 1.0
 var attack_speed_modifier: float = 1.0 
+var cooldown_modifier: float = 1.0
+var dodge_cooldown_modifier: float = 1.0 
+
+# New Utility Modifiers
+var magazine_size_modifier: int = 0
+var ability_count_modifier: int = 0
+var ability_radius_modifier: float = 1.0
+var max_shield_modifier: float = 1.0 
 
 # Combat Stats
 const FIRE_RATE_SWORD: float = 0.95
@@ -92,6 +111,7 @@ var shield_active_time: float = 0.0 # Track how long shield is up
 var shield_line: Line2D 
 var aim_line: Line2D 
 var time_freeze_layer: CanvasLayer 
+var boss_pointer_line: Line2D 
 
 func _ready() -> void:
 	add_to_group("player")
@@ -111,19 +131,19 @@ func _ready() -> void:
 	shield_line.visible = false
 	add_child(shield_line) 
 	
-	# Create Aim Line (Laser Sight)
-	aim_line = Line2D.new()
-	aim_line.width = 2.0
-	aim_line.default_color = Color(1.0, 0.0, 0.0, 0.4) # Faint red
-	add_child(aim_line)
-	
+	# Create Boss Pointer Line
+	boss_pointer_line = Line2D.new()
+	boss_pointer_line.width = 15.0 # Thick
+	boss_pointer_line.default_color = Color(1.0, 0.0, 1.0, 0.7) # Purple/Pink
+	boss_pointer_line.visible = false
+	add_child(boss_pointer_line)
+
 	chest_sprite.scale = Vector2(0.8, 0.8)
 	
 	# Explicit Collision Setup
 	# Layer 1: Environment, Layer 2: Player, Layer 3: Enemy, Layer 4: Enemy Projectile
 	collision_layer = 2 
 	collision_mask = 1 | 4 # World + Enemies
-
 
 	if has_node("/root/SaveSystem"):
 		set_skin_tone(SaveSystem.get_skin_tone())
@@ -135,70 +155,180 @@ func _ready() -> void:
 	else:
 		set_skin_tone(0)
 
-	# Initialize Weapon
-	equip_kit(current_kit)
+	# Initialize Weapon from GameLoop
+	if GameLoop:
+		equip_kit(GameLoop.selected_kit as Kit)
+	else:
+		equip_kit(current_kit)
+		
+	apply_global_stats()
+
+func apply_global_stats() -> void:
+	# Calculate Global Bonuses explicitly (Non-compounding)
+	var str_bonus = 1.0 + (GameLoop.global_stats["strength"] * 0.1)
+	# var dex_bonus = 1.0 + (GameLoop.global_stats["dexterity"] * 0.05) # Unused local var
+	
+	# Set Global Modifier
+	global_damage_modifier = str_bonus
+	
+	# Intelligence: +5% Cooldown Reduction (Calculated fresh)
+	# var cdr = GameLoop.global_stats["intelligence"] * 0.05 # Unused local var
+	
+	print("Global Stats Applied. Str: ", GameLoop.global_stats["strength"], " Dex: ", GameLoop.global_stats["dexterity"], " Int: ", GameLoop.global_stats["intelligence"])
 
 func _process(delta: float) -> void:
-	if is_aiming_blink:
+	if is_aiming_blink or is_aiming_ability: # Update for ability aim too
 		queue_redraw()
 	
+	# Boss/Objective Pointer Logic
+	update_objective_pointer()
+
 	if is_shielding:
 		shield_active_time += delta
 		draw_shield_line()
 		
-		# Max Duration: 3 Seconds
+		# Auto-drop after 3 seconds
 		if shield_active_time >= 3.0:
 			drop_shield()
 	else:
-		shield_line.visible = false
-	
-	# Shield Regen Logic
-	if not is_shielding and not is_shield_broken:
-		time_since_shield_hit += delta
-		if time_since_shield_hit > 5.0 and shield_hp < MAX_SHIELD_HP:
-			shield_hp += 10.0 * delta # Regen 10 HP/s
-			shield_hp = min(shield_hp, MAX_SHIELD_HP)
+		# Recharge Shield Logic
+		# If not broken and below max (scaled by modifier)
+		var max_s = MAX_SHIELD_HP * max_shield_modifier
+		if not is_shield_broken and shield_hp < max_s:
+			time_since_shield_hit += delta
+			if time_since_shield_hit >= 5.0:
+				# Regen 20 HP/sec
+				shield_hp += 20.0 * delta
+				shield_hp = min(shield_hp, max_s)
 
-	# Laser Sight / Aim Arrow Logic
-	aim_line.visible = false
-	aim_line.clear_points()
-	
+# ... (Previous code) ...
+
+func _draw() -> void:
+	if is_aiming_blink:
+		draw_circle(Vector2.ZERO, MAX_BLINK_DIST, Color(0.2, 0.6, 1.0, 0.15))
+		draw_arc(Vector2.ZERO, MAX_BLINK_DIST, 0, TAU, 64, Color(0.2, 0.6, 1.0, 0.5), 2.0)
+		var mouse_local = get_local_mouse_position()
+		var dir = mouse_local.normalized()
+		var dist = min(mouse_local.length(), MAX_BLINK_DIST)
+		draw_line(Vector2.ZERO, dir * dist, Color(0.2, 0.6, 1.0, 0.5), 2.0)
+		
 	if is_aiming_ability:
-		if current_kit == Kit.MAGE and can_chain_lightning:
-			# Lightning Arrow (Comfort aim)
-			var mouse_local = get_local_mouse_position()
-			var dist = min(mouse_local.length(), 150.0) # Cap length
-			draw_aim_arrow(mouse_local.normalized() * dist, Color(1.0, 0.0, 0.0, 0.4))
-			
-		elif current_kit == Kit.GUN and can_grenade:
-			# Grenade Arrow (Power indicator)
-			var mouse_pos = get_global_mouse_position()
-			var dist_full = global_position.distance_to(mouse_pos)
-			var power_ratio = clamp(dist_full / MAX_THROW_DIST, 0.2, 1.2)
-			
-			var visual_length = 50.0 + (power_ratio * 100.0) # 70px to 170px
-			var dir = (mouse_pos - global_position).normalized()
-			
-			draw_aim_arrow(dir * visual_length, Color(1.0, 1.0, 0.0, 0.6))
+		# Draw Aim Line for Grenade / Chain Lightning
+		var mouse_local = get_local_mouse_position()
+		var dist = mouse_local.length()
+		var max_dist = MAX_THROW_DIST if current_kit == Kit.GUN else 600.0
+		
+		var dir = mouse_local.normalized()
+		var draw_dist = min(dist, max_dist)
+		
+		# Dashed Line or Color diff
+		draw_line(Vector2.ZERO, dir * draw_dist, Color(1.0, 0.5, 0.0, 0.6), 2.0) # Orange
+		draw_circle(dir * draw_dist, 5.0, Color(1.0, 0.5, 0.0, 0.8))
 
-func draw_aim_arrow(end_point_local: Vector2, color: Color) -> void:
-	aim_line.visible = true
-	aim_line.default_color = color
-	aim_line.add_point(weapon_pivot.global_position - global_position) # Start
-	aim_line.add_point(end_point_local) # End
+# ... (Previous code) ...
+
+func throw_grenade() -> void:
+	can_grenade = false
 	
-	# Arrow Head
-	var head_len = 10.0
-	var angle = end_point_local.angle()
-	var arrow_p1 = end_point_local - Vector2(head_len, head_len).rotated(angle + PI/4)
-	var arrow_p2 = end_point_local - Vector2(head_len, -head_len).rotated(angle - PI/4)
+	# Multicast (Extra Grenades)
+	var throw_count = 1 + ability_count_modifier
+	var delay_between = 0.1
 	
-	# We can't easily branch lines in Line2D, so we cheat and re-trace back to tip then other side
-	aim_line.add_point(arrow_p1)
-	aim_line.add_point(end_point_local)
-	aim_line.add_point(arrow_p2)
+	for i in range(throw_count):
+		call_deferred("_spawn_grenade_projectile", i) # Defer to separate spawn logic visually
+		if throw_count > 1:
+			await get_tree().create_timer(delay_between).timeout
+	
+	cooldown_updated.emit("shroom", 1.0)
+	var tw = create_tween()
+	var duration = 5.0 * cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, duration)
+	
+	await get_tree().create_timer(duration).timeout
+	can_grenade = true
 
+func _spawn_grenade_projectile(index: int) -> void:
+	var grenade = GRENADE_SCENE.instantiate()
+	get_parent().add_child(grenade)
+	grenade.global_position = global_position
+	
+	var mouse_pos = get_global_mouse_position()
+	# Optional spread if multiple
+	if index > 0:
+		mouse_pos += Vector2(randf_range(-40, 40), randf_range(-40, 40))
+		
+	var dist = global_position.distance_to(mouse_pos)
+	var power_ratio = clamp(dist / MAX_THROW_DIST, 0.2, 1.2)
+	
+	grenade.direction = (mouse_pos - global_position).normalized()
+	grenade.speed = 600.0 * power_ratio
+	
+	# Apply Global Damage & Shooter (Ability Only)
+	grenade.damage = int(50 * ability_damage_modifier * global_damage_modifier)
+	grenade.shooter_player = self
+	
+	# Radius Modifier (Requires Grenade script support? Or scale?)
+	# Simple scale for visual and collision:
+	grenade.scale = Vector2.ONE * ability_radius_modifier
 
+func update_objective_pointer() -> void:
+	var target_node: Node2D = null
+	var pointer_color = Color(1.0, 0.0, 1.0, 0.7) # Default Boss Purple
+	
+	# 1. Check for Boss (Priority)
+	var boss = get_tree().get_first_node_in_group("boss")
+	if boss:
+		target_node = boss
+		pointer_color = Color(1.0, 0.0, 1.0, 0.7) # Purple
+	else:
+		# 2. Check for Low Enemy Count
+		var enemies = get_tree().get_nodes_in_group("enemy")
+		if enemies.size() > 0 and enemies.size() <= 5:
+			# Find Nearest
+			var nearest_dist = INF
+			for enemy in enemies:
+				var d = global_position.distance_to(enemy.global_position)
+				if d < nearest_dist:
+					nearest_dist = d
+					target_node = enemy
+			
+			pointer_color = Color(1.0, 0.5, 0.0, 0.7) # Orange for stragglers
+			
+	if not target_node:
+		boss_pointer_line.visible = false
+		return
+		
+	var to_target = target_node.global_position - global_position
+	var dist = to_target.length()
+	
+	# Only show if far away (e.g. off screenish)
+	if dist > 600.0:
+		boss_pointer_line.visible = true
+		boss_pointer_line.default_color = pointer_color
+		boss_pointer_line.clear_points()
+		
+		# Draw at fixed distance
+		var dir = to_target.normalized()
+		var start = dir * 100.0
+		var end = dir * 200.0
+		
+		# Simple arrow
+		# Reuse draw_aim_arrow logic but manually here to keep it simple
+		boss_pointer_line.add_point(start)
+		boss_pointer_line.add_point(end)
+		
+		# Arrowhead
+		var angle = dir.angle()
+		var head_len = 30.0
+		var arrow_p1 = end - Vector2(head_len, head_len).rotated(angle + PI/4)
+		var arrow_p2 = end - Vector2(head_len, -head_len).rotated(angle - PI/4)
+		
+		boss_pointer_line.add_point(arrow_p1)
+		boss_pointer_line.add_point(end)
+		boss_pointer_line.add_point(arrow_p2)
+		
+	else:
+		boss_pointer_line.visible = false
 
 func draw_shield_line() -> void:
 	shield_line.visible = true
@@ -221,14 +351,7 @@ func draw_shield_line() -> void:
 		var point = center + Vector2(cos(angle), sin(angle)) * radius
 		shield_line.add_point(point)
 
-func _draw() -> void:
-	if is_aiming_blink:
-		draw_circle(Vector2.ZERO, MAX_BLINK_DIST, Color(0.2, 0.6, 1.0, 0.15))
-		draw_arc(Vector2.ZERO, MAX_BLINK_DIST, 0, TAU, 64, Color(0.2, 0.6, 1.0, 0.5), 2.0)
-		var mouse_local = get_local_mouse_position()
-		var dir = mouse_local.normalized()
-		var dist = min(mouse_local.length(), MAX_BLINK_DIST)
-		draw_line(Vector2.ZERO, dir * dist, Color(0.2, 0.6, 1.0, 0.5), 2.0)
+
 
 
 
@@ -236,9 +359,11 @@ func movement() -> void:
 	var input_vector = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	
 	# Slow down if shielding
-	var current_speed = speed
-	if is_shielding:
-		current_speed *= 0.5
+	var current_speed = speed * move_speed_modifier # Applied Wave Speed Modifier
+	
+	# Global Dex Bonus
+	current_speed *= (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
+	
 	if is_shielding:
 		current_speed *= 0.5
 	if is_spinning:
@@ -384,6 +509,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_released("ability"):
 		if is_aiming_ability:
 			is_aiming_ability = false
+			queue_redraw() # Clear Aim Lines
 			if current_kit == Kit.GUN:
 				throw_grenade()
 			elif current_kit == Kit.MAGE:
@@ -427,7 +553,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Spawning Enemies
 		if event.keycode == KEY_4: spawn_debug_enemy(ENEMY_SCENE)
 		if event.keycode == KEY_5: spawn_debug_enemy(TURRET_SCENE)
-		if event.keycode == KEY_6: spawn_debug_enemy(TANK_SCENE)
+		if event.keycode == KEY_7: spawn_debug_enemy(BOSS_SCENE)
+		if event.keycode == KEY_8: start_boss_encounter()
+		
+		# DEBUG: Grant Boss Token
+		if event.keycode == KEY_M:
+			GameLoop.boss_tokens += 5
+			print("DEBUG: Added 5 Boss Tokens. Total: ", GameLoop.boss_tokens)
+			# Refresh stats just in case
+			apply_global_stats()
+			print("Current Stats: ", GameLoop.global_stats)
+
+
 		
 		if event.keycode == KEY_0:
 
@@ -473,18 +610,23 @@ func try_attack() -> void:
 func start_reload() -> void:
 	if is_reloading: return
 	if current_kit != Kit.GUN: return
-	if current_ammo >= max_ammo: 
+	
+	var effective_max = max_ammo + magazine_size_modifier
+	if current_ammo >= effective_max: 
 		print("Ammo full already")
 		return # Full already
 	
 	print("Reloading...")
 	is_reloading = true
+	# Immediate feedback
+	ammo_updated.emit(current_ammo, effective_max)
 	
 	# Reload Timer (1.0s)
 	await get_tree().create_timer(1.0).timeout
 	
-	current_ammo = max_ammo
+	current_ammo = effective_max
 	is_reloading = false
+	ammo_updated.emit(current_ammo, effective_max)
 	print("Reload Complete. Ammo: ", current_ammo)
 
 func shoot_gun() -> void:
@@ -494,6 +636,8 @@ func shoot_gun() -> void:
 
 	if weapon_pivot:
 		current_ammo -= 1
+		var effective_max = max_ammo + magazine_size_modifier
+		ammo_updated.emit(current_ammo, effective_max)
 		print("Bang! Ammo: ", current_ammo)
 		
 		var projectile = PROJECTILE_SCENE.instantiate()
@@ -503,14 +647,29 @@ func shoot_gun() -> void:
 		
 		projectile.global_rotation = weapon_pivot.global_rotation
 		
-		attack_cooldown = FIRE_RATE_GUN / attack_speed_modifier
+		# Apply Damage: Base * WeaponMod * GlobalMod
+		var total_dmg = 10.0 * weapon_damage_modifier * global_damage_modifier
+		projectile.damage = int(total_dmg)
+		projectile.shooter_player = self
+		
+		# Attack Speed: Base * WeaponSpeedMod (Wave) * GlobalSpeedMod (Dex)
+		var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
+		var total_atk_speed = attack_speed_modifier * dex_mod
+		
+		attack_cooldown = FIRE_RATE_GUN / total_atk_speed
 		
 		if current_ammo <= 0:
 			start_reload()
 			
-		if current_ult != UltType.NONE:
-			ultimate_charge = min(ultimate_charge + 5.0, 100.0)
-			ultimate_updated.emit(ultimate_charge)
+func add_ultimate_charge(amount: float) -> void:
+	if current_ult == UltType.NONE: return
+	
+	ultimate_charge = min(ultimate_charge + amount, 100.0)
+	ultimate_updated.emit(ultimate_charge)
+	
+	if ultimate_charge >= 100.0:
+		# Optional: Play "Ult Ready" sound or visual flash
+		pass
 
 func shoot_magic() -> void:
 	if weapon_pivot:
@@ -518,11 +677,17 @@ func shoot_magic() -> void:
 		get_parent().add_child(missile)
 		missile.global_position = weapon_pivot.global_position
 		missile.global_rotation = weapon_pivot.global_rotation
+		missile.shooter_player = self 
 		
-		missile.global_rotation = weapon_pivot.global_rotation
+		# Apply Damage: Base * WeaponMod * GlobalMod (Mage Shot is Primary Weapon)
+		var total_dmg = 15.0 * weapon_damage_modifier * global_damage_modifier
+		missile.damage = int(total_dmg)
 		
-		attack_cooldown = FIRE_RATE_MAGE / attack_speed_modifier
-		print("Magic Missile Fired!")
+		# Attack Speed
+		var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
+		attack_cooldown = FIRE_RATE_MAGE / (attack_speed_modifier * dex_mod)
+		
+		print("Magic Missile Fired! Dmg: ", missile.damage)
 
 const SLASH_SCENE = preload("res://Scenes/Characters/SlashProjectile.tscn")
 
@@ -532,13 +697,20 @@ func swing_sword() -> void:
 	slash.global_position = weapon_pivot.global_position
 	slash.global_rotation = weapon_pivot.global_rotation
 	
-	slash.global_rotation = weapon_pivot.global_rotation
-	
-	attack_cooldown = FIRE_RATE_SWORD / attack_speed_modifier
+	# Attack Speed
+	var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
+	attack_cooldown = FIRE_RATE_SWORD / (attack_speed_modifier * dex_mod)
 	
 	# Apply Modifiers
-	slash.damage = int(40 * damage_modifier)
-	slash.scale = Vector2(1.0, 1.0) * (damage_modifier if damage_modifier > 1.0 else 1.0) # Bigger slash if buffed
+	var total_dmg = 40.0 * weapon_damage_modifier * global_damage_modifier
+	slash.damage = int(total_dmg)
+	
+	# Scale slash with damage buff slightly, but respect visual limits
+	# Let's use weapon_damage_modifier as visual scale factor
+	var visual_scale = max(1.0, weapon_damage_modifier)
+	slash.scale = Vector2(1.0, 1.0) * visual_scale
+	
+	slash.shooter_player = self
 	
 	if active_sword and active_sword.has_method("swing"):
 		active_sword.swing()
@@ -569,7 +741,8 @@ func perform_dodge() -> void:
 	# Cooldown UI
 	cooldown_updated.emit("dodge", 1.0)
 	var tw = create_tween()
-	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, 1.5)
+	var duration = 1.5 * dodge_cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
 	
 	await get_tree().create_timer(0.3).timeout # Dash duration
 	
@@ -587,7 +760,7 @@ func perform_dodge() -> void:
 	# Unstuck Logic
 	check_dodge_unstuck()
 	
-	await get_tree().create_timer(1.2).timeout
+	await get_tree().create_timer(max(0.0, duration - 0.3)).timeout
 	can_dodge = true
 
 func check_dodge_unstuck() -> void:
@@ -628,30 +801,13 @@ func perform_blink() -> void:
 	
 	cooldown_updated.emit("dodge", 1.0)
 	var tw = create_tween()
-	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, 1.5) 
+	var duration = 1.5 * dodge_cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration) 
 	
-	await get_tree().create_timer(1.5).timeout
+	await get_tree().create_timer(duration).timeout
 	can_dodge = true
 
-func throw_grenade() -> void:
-	can_grenade = false
-	var grenade = GRENADE_SCENE.instantiate()
-	get_parent().add_child(grenade)
-	grenade.global_position = global_position
-	
-	var mouse_pos = get_global_mouse_position()
-	var dist = global_position.distance_to(mouse_pos)
-	var power_ratio = clamp(dist / MAX_THROW_DIST, 0.2, 1.2)
-	
-	grenade.direction = (mouse_pos - global_position).normalized()
-	grenade.speed = 600.0 * power_ratio
-	
-	cooldown_updated.emit("shroom", 1.0)
-	var tw = create_tween()
-	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, 5.0)
-	
-	await get_tree().create_timer(5.0).timeout
-	can_grenade = true
+
 
 func perform_shockwave() -> void:
 	can_shockwave = false
@@ -659,14 +815,23 @@ func perform_shockwave() -> void:
 	add_child(wave)
 	wave.position = Vector2.ZERO
 	
+	# Apply Stats
+	# Apply Stats
+	wave.damage = int(25 * ability_damage_modifier * global_damage_modifier) # Ability Only
+	wave.shooter_player = self
+	
+	# Radius Modifier
+	wave.scale = Vector2.ONE * ability_radius_modifier
+	
 	print("Shockwave!")
 	
 	# Cooldown (Using 'shroom' bar for now as requested)
 	cooldown_updated.emit("shroom", 1.0)
 	var tw = create_tween()
-	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, 5.0)
+	var duration = 5.0 * cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, duration)
 	
-	await get_tree().create_timer(5.0).timeout
+	await get_tree().create_timer(duration).timeout
 	can_shockwave = true
 
 func perform_chain_lightning() -> void:
@@ -690,16 +855,22 @@ func perform_chain_lightning() -> void:
 	var chain_manager = CHAIN_LIGHTNING_SCENE.instantiate()
 	get_parent().add_child(chain_manager)
 	
+	# Configure Manager
+	chain_manager.damage = int(35 * ability_damage_modifier * global_damage_modifier)
+	chain_manager.max_bounces = 4 + ability_count_modifier # Extra Bounces
+	chain_manager.shooter_player = self
+	
 	if result and result.collider.is_in_group("enemy"):
 		# Hit Enemy
 		print("Hitscan: Hit Enemy!")
 		chain_manager.setup(weapon_pivot.global_position, result.collider)
+		# NOTE: Ultimate Charge is now handled by chain_manager per-hit!
 	else:
 		# Whiff / Hit Wall
 		print("Hitscan: Miss/Wall")
 		var end_pos = result.position if result else (global_position + dir * max_range)
 		chain_manager.create_lightning_arc(weapon_pivot.global_position, end_pos)
-		# No setup call, so it won't chain, just draws one line then dies.
+		
 		# Manually trigger cleanup for whiff
 		await get_tree().create_timer(0.3).timeout
 		chain_manager.queue_free()
@@ -709,9 +880,10 @@ func perform_chain_lightning() -> void:
 	# Cooldown
 	cooldown_updated.emit("shroom", 1.0)
 	var tw = create_tween()
-	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, 4.0)
+	var duration = 4.0 * cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("shroom", v), 1.0, 0.0, duration)
 	
-	await get_tree().create_timer(4.0).timeout
+	await get_tree().create_timer(duration).timeout
 	can_chain_lightning = true
 
 func perform_time_freeze() -> void:
@@ -719,21 +891,23 @@ func perform_time_freeze() -> void:
 	ultimate_updated.emit(ultimate_charge)
 	
 	print("ZA WARUDO! Time Stopped.")
+	if GameLoop: GameLoop.is_time_frozen = true
 	
-	# 1. Freeze Enemies
+	# 1. Freeze Enemies & Projectiles
 	get_tree().call_group("enemy", "freeze")
+	get_tree().call_group("enemy_projectile", "freeze")
 	
 	# 2. Visuals
 	time_freeze_layer.visible = true
 	
-	# 3. Audio (Hypothetical)
-	# $Audio.play("time_stop")
-
 	# 4. Wait
 	await get_tree().create_timer(5.0).timeout
 	
 	# 5. Resume
+	if GameLoop: GameLoop.is_time_frozen = false
 	get_tree().call_group("enemy", "unfreeze")
+	get_tree().call_group("enemy_projectile", "unfreeze")
+
 	time_freeze_layer.visible = false
 	print("Time Resumed.")
 
@@ -762,7 +936,12 @@ func spawn_acid_rain_droplet() -> void:
 	var start_y = global_position.y - 500 # Slightly above screen
 	
 	drop.global_position = Vector2(random_x, start_y)
-
+	
+	# Global Damage
+	if drop.get("damage"):
+		drop.damage = int(drop.damage * global_damage_modifier)
+	drop.shooter_player = self
+	
 func perform_beyblade() -> void:
 	ultimate_charge = 0.0
 	ultimate_updated.emit(ultimate_charge)
@@ -772,9 +951,14 @@ func perform_beyblade() -> void:
 	add_child(beyblade)
 	beyblade.position = Vector2.ZERO
 	
+	# Global Damage
+	if beyblade.get("damage"):
+		beyblade.damage = int(beyblade.damage * global_damage_modifier)
+	beyblade.shooter_player = self
+	
 	print("BEYBLADE LET IT RIP!")
 	
-	# buff HP by 30%
+	# buff HP by 30%aa
 	var bonus_hp = max_hp * 0.3
 	max_hp += bonus_hp
 	hp += bonus_hp
@@ -796,14 +980,16 @@ func perform_roid_rage() -> void:
 	
 	is_roid_raging = true
 	
-	# Apply Stats
+	# Apply Stats (Additive/Multiplicative correctly)
 	var bonus_hp = max_hp * 0.5 # +50% (Total 1.5x)
 	max_hp += bonus_hp
 	hp += bonus_hp
 	
-	speed_modifier = 1.8
-	damage_modifier = 2.0
-	attack_speed_modifier = 1.8
+	# Buff existing modifiers
+	move_speed_modifier *= 1.8
+	weapon_damage_modifier *= 2.0
+	attack_speed_modifier *= 1.8
+	
 	visuals.modulate = Color(2.0, 0.5, 0.5) # Bright Red
 	visuals.scale = Vector2(1.5, 1.5)
 	
@@ -815,9 +1001,10 @@ func perform_roid_rage() -> void:
 	max_hp -= bonus_hp
 	if hp > max_hp: hp = max_hp
 	
-	speed_modifier = 1.0
-	damage_modifier = 1.0
-	attack_speed_modifier = 1.0
+	move_speed_modifier /= 1.8
+	weapon_damage_modifier /= 2.0
+	attack_speed_modifier /= 1.8
+	
 	visuals.modulate = Color.WHITE
 	visuals.scale = Vector2.ONE
 	
@@ -840,6 +1027,11 @@ func fire_ultimate() -> void:
 		get_parent().add_child(projectile)
 		projectile.global_position = weapon_pivot.global_position
 		projectile.global_rotation = weapon_pivot.global_rotation
+		
+		# Apply Global Damage Boost
+		if projectile.get("damage"):
+			projectile.damage = int(projectile.damage * global_damage_modifier)
+		projectile.shooter_player = self
 
 # Shield Logic
 func drop_shield() -> void:
@@ -848,6 +1040,7 @@ func drop_shield() -> void:
 	is_shielding = false
 	can_shield = false
 	shield_active_time = 0.0 # Reset duration timer
+	shield_line.visible = false # Explicitly hide
 	queue_redraw()
 	print("Shield Down")
 	
@@ -855,14 +1048,17 @@ func drop_shield() -> void:
 	if not is_shield_broken:
 		cooldown_updated.emit("dodge", 1.0) # Reuse dodge bar
 		var tw = create_tween()
-		tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, 1.5)
-		await get_tree().create_timer(1.5).timeout
+		var duration = 1.5 * dodge_cooldown_modifier
+		tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
+		await get_tree().create_timer(duration).timeout
 		can_shield = true
 
 func hit_shield(damage: int) -> void:
 	time_since_shield_hit = 0.0
 	shield_hp -= damage
 	print("Shield Hit! HP: ", shield_hp)
+	
+	shield_updated.emit(shield_hp, MAX_SHIELD_HP * max_shield_modifier)
 	
 	if shield_hp <= 0:
 		shield_hp = 0
@@ -877,9 +1073,10 @@ func break_shield() -> void:
 	cooldown_updated.emit("dodge", 1.0)
 	var tw = create_tween()
 	# 8s Cooldown for broken shield
-	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, 8.0)
+	var duration = 8.0 * dodge_cooldown_modifier
+	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
 	
-	await get_tree().create_timer(8.0).timeout
+	await get_tree().create_timer(duration).timeout
 	is_shield_broken = false
 	shield_hp = MAX_SHIELD_HP # Full restore on return
 	can_shield = true
@@ -906,8 +1103,44 @@ func take_damage(amount: int, source_pos: Vector2 = Vector2.ZERO) -> void:
 			return # Blocked
 			
 	# Regular Damage Logic
+	if hp <= 0: return # Already dead
+	
 	hp -= amount
+	if hp < 0: hp = 0
+	
 	print("Player took full damage: ", amount, " HP: ", hp)
+	
+	if hp <= 0:
+		die()
+
+func die() -> void:
+	if not input_enabled: return # Already dead
+	
+	print("PLAYER DIED!")
+	input_enabled = false
+	
+	# Stop Physics
+	velocity = Vector2.ZERO
+	set_physics_process(false)
+	
+	# TODO: Play Death Animation?
+	
+	# Show Game Over Screen
+	var hud = get_tree().get_first_node_in_group("hud") # Assumes HUD is in group 'hud'
+	
+	# Fallback: Find HUD manually if group fail
+	if not hud:
+		hud = get_parent().get_node_or_null("HUD")
+		
+	if hud and hud.has_method("show_game_over"):
+		var waves = 1
+		if GameLoop: waves = GameLoop.current_wave
+		hud.show_game_over(waves)
+	else:
+		# Emergency Restart if no HUD
+		print("No HUD found for Game Over. Restarting in 3s...")
+		await get_tree().create_timer(3.0).timeout
+		get_tree().reload_current_scene()
 
 func spawn_debug_enemy(scene: PackedScene) -> void:
 	var enemy = scene.instantiate()
@@ -915,3 +1148,59 @@ func spawn_debug_enemy(scene: PackedScene) -> void:
 	# Spawn near mouse
 	enemy.global_position = get_global_mouse_position()
 	print("Spawned enemy: ", scene.resource_path)
+
+func start_boss_encounter() -> void:
+	print("DEBUG: Starting Boss Encounter Setup")
+	
+	# 1. Clear existing enemies
+	get_tree().call_group("enemy", "queue_free")
+	get_tree().call_group("enemy_projectile", "queue_free")
+	
+	# 2. Position Player (Far Left)
+	var viewport = get_viewport_rect().size
+	var center_y = viewport.y / 2
+	var margin_player = 150.0 # Increased margin
+	var margin_boss = 200.0 # Increased margin
+	
+	global_position = Vector2(margin_player, center_y)
+	
+	# 3. Spawn Boss (Far Right)
+	var boss = BOSS_SCENE.instantiate()
+	get_parent().add_child(boss)
+	boss.global_position = Vector2(viewport.x - margin_boss, center_y)
+	
+	# 4. Spawn Turrets (Extreme Corners)
+	var t_margin = 60.0 # Pushed further into corners
+	var turret_positions = [
+		Vector2(t_margin, t_margin), 
+		Vector2(viewport.x - t_margin, t_margin), 
+		Vector2(t_margin, viewport.y - t_margin), 
+		Vector2(viewport.x - t_margin, viewport.y - t_margin) 
+	]
+
+	
+	# Actually, the user drawing showed:
+	# Player Left
+	# Boss Right
+	# Turrets: Top Left, Bottom Left (behind player?), Top Right, Bottom Right (behind boss?)
+	# Let's stick to the drawing interpretation: 4 corners of the play area.
+	
+	for pos in turret_positions:
+		var t = TURRET_SCENE.instantiate()
+		get_parent().add_child(t)
+		t.global_position = pos
+		
+	# 5. Spawn Tanks (Flanking Boss)
+	var boss_pos = boss.global_position
+	# Tank left of boss, Tank right of boss?
+	# Drawing showed Green dots flanking the red stickman.
+	var tank1 = TANK_SCENE.instantiate()
+	get_parent().add_child(tank1)
+	tank1.global_position = boss_pos + Vector2(-200, 0) # In front of boss
+	
+	var tank2 = TANK_SCENE.instantiate() # Maybe behind? Drawing was simplistic. 
+	# Let's put one above and one below boss for better gameplay?
+	# Drawing looked like:  Tank  BOSS  Tank (Horizontal line?)
+	# Let's try flanking left/right for now.
+	get_parent().add_child(tank2)
+	tank2.global_position = boss_pos + Vector2(200, 0)

@@ -1,0 +1,252 @@
+[gd_scene load_steps=3 format=3 uid="uid://mainmenu001"]
+
+[ext_resource type="Script" path="res://Scripts/UI/MainMenu.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://b8j2x0p1q4x5y" path="res://Scenes/Characters/Player.tscn" id="2_player"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.1, 1)
+
+
+[node name="UI" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 75.0
+offset_top = -250.0
+offset_right = 475.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Title" type="Label" parent="UI"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "PROJECT COCAINE"
+horizontal_alignment = 1
+
+[node name="PlayButton" type="Button" parent="UI"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "PLAY"
+
+[node name="SettingsButton" type="Button" parent="UI"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "SETTINGS"
+
+[node name="StoreButton" type="Button" parent="UI"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "STORE"
+
+[node name="CustomizationButton" type="Button" parent="UI"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "CUSTOMIZATION"
+
+[node name="MessageLabel" type="Label" parent="UI"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="KitSelectionUI" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="KitBG" type="ColorRect" parent="KitSelectionUI"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.8)
+
+[node name="KitContainer" type="VBoxContainer" parent="KitSelectionUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 75.0
+offset_top = -150.0
+offset_right = 475.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="Label" type="Label" parent="KitSelectionUI/KitContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "SELECT YOUR KIT"
+horizontal_alignment = 1
+
+[node name="GunButton" type="Button" parent="KitSelectionUI/KitContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "GUN"
+
+[node name="MeleeButton" type="Button" parent="KitSelectionUI/KitContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "MELEE"
+
+[node name="MageButton" type="Button" parent="KitSelectionUI/KitContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "MAGE"
+
+[node name="CancelKitButton" type="Button" parent="KitSelectionUI/KitContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "CANCEL"
+
+[node name="CharCreatorUI" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CreatorBG" type="ColorRect" parent="CharCreatorUI"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.1, 1)
+
+[node name="CreatorContainer" type="VBoxContainer" parent="CharCreatorUI"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 75.0
+offset_top = -300.0
+offset_right = 475.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="Label" type="Label" parent="CharCreatorUI/CreatorContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "CREATE CHARACTER"
+horizontal_alignment = 1
+
+[node name="SkinLabel" type="Label" parent="CharCreatorUI/CreatorContainer"]
+layout_mode = 2
+text = "Skin Tone"
+
+[node name="SkinContainer" type="HBoxContainer" parent="CharCreatorUI/CreatorContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Skin1" type="Button" parent="CharCreatorUI/CreatorContainer/SkinContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Light"
+
+[node name="Skin2" type="Button" parent="CharCreatorUI/CreatorContainer/SkinContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Tan"
+
+[node name="Skin3" type="Button" parent="CharCreatorUI/CreatorContainer/SkinContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Dark"
+
+[node name="ChestLabel" type="Label" parent="CharCreatorUI/CreatorContainer"]
+layout_mode = 2
+text = "Chest"
+
+[node name="ChestContainer" type="HBoxContainer" parent="CharCreatorUI/CreatorContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HoodieRed" type="Button" parent="CharCreatorUI/CreatorContainer/ChestContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Red Hoodie"
+
+[node name="HoodieBlue" type="Button" parent="CharCreatorUI/CreatorContainer/ChestContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Blue Hoodie"
+
+[node name="FinishCreatorButton" type="Button" parent="CharCreatorUI/CreatorContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+theme_override_font_sizes/font_size = 32
+text = "FINISH & PLAY"
+
+[node name="PreviewContainer" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -275.0
+offset_right = -75.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="PlayerPreview" parent="PreviewContainer" instance=ExtResource("2_player")]
+unique_name_in_owner = true
+position = Vector2(100, 0)
+scale = Vector2(2.5, 2.5)
+

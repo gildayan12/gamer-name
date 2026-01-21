@@ -1,0 +1,196 @@
+[gd_scene load_steps=3 format=3 uid="uid://8a5hibcn0vxo"]
+
+[ext_resource type="Script" path="res://Scripts/UI/GlobalUpgradeShop.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://icon.svg" id="2_icon"]
+
+[node name="GlobalUpgradeShop" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.1, 0.95)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 50.0
+offset_right = 200.0
+offset_bottom = 100.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 48
+text = "BOSS DEFEATED"
+horizontal_alignment = 1
+
+[node name="TokenLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -150.0
+offset_top = 120.0
+offset_right = 150.0
+offset_bottom = 160.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 32
+text = "BOSS TOKENS: 0"
+horizontal_alignment = 1
+
+[node name="CardContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -150.0
+offset_right = 500.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 40
+alignment = 1
+
+[node name="StrCard" type="VBoxContainer" parent="CardContainer"]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CardContainer/StrCard"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 28
+text = "STRENGTH"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="CardContainer/StrCard"]
+layout_mode = 2
+text = "+10% Damage
+Hits Harder."
+horizontal_alignment = 1
+
+[node name="Icon" type="TextureRect" parent="CardContainer/StrCard"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+texture = ExtResource("2_icon")
+expand_mode = 1
+stretch_mode = 5
+self_modulate = Color(1, 0.3, 0.3, 1)
+
+[node name="StrValue" type="Label" parent="CardContainer/StrCard"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Lvl 0"
+horizontal_alignment = 1
+
+[node name="StrengthButton" type="Button" parent="CardContainer/StrCard"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "UPGRADE (1 Token)"
+
+[node name="DexCard" type="VBoxContainer" parent="CardContainer"]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CardContainer/DexCard"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.3, 1)
+theme_override_font_sizes/font_size = 28
+text = "DEXTERITY"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="CardContainer/DexCard"]
+layout_mode = 2
+text = "+5% Move Speed
+2.5% Atk Speed"
+horizontal_alignment = 1
+
+[node name="Icon" type="TextureRect" parent="CardContainer/DexCard"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+texture = ExtResource("2_icon")
+expand_mode = 1
+stretch_mode = 5
+self_modulate = Color(0.3, 1, 0.3, 1)
+
+[node name="DexValue" type="Label" parent="CardContainer/DexCard"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Lvl 0"
+horizontal_alignment = 1
+
+[node name="DexterityButton" type="Button" parent="CardContainer/DexCard"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "UPGRADE (1 Token)"
+
+[node name="IntCard" type="VBoxContainer" parent="CardContainer"]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CardContainer/IntCard"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.6, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "INTELLIGENCE"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="CardContainer/IntCard"]
+layout_mode = 2
+text = "+5% Cooldown Red.
+Spam More."
+horizontal_alignment = 1
+
+[node name="Icon" type="TextureRect" parent="CardContainer/IntCard"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+texture = ExtResource("2_icon")
+expand_mode = 1
+stretch_mode = 5
+self_modulate = Color(0.3, 0.6, 1, 1)
+
+[node name="IntValue" type="Label" parent="CardContainer/IntCard"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Lvl 0"
+horizontal_alignment = 1
+
+[node name="IntelligenceButton" type="Button" parent="CardContainer/IntCard"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "UPGRADE (1 Token)"
+
+[node name="ContinueButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -100.0
+offset_top = -100.0
+offset_right = 100.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 24
+text = "CONTINUE RUN"

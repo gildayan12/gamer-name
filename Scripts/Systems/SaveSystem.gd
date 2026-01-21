@@ -11,7 +11,8 @@ var current_data = {
 	"unlocked_items": [], # Array of String IDs
 	"current_skin_tone": 0, # Int index
 	"current_outfit_id": "", # String ID
-	"high_score": 0
+	"high_score": 0,
+	"is_character_created": false
 }
 
 func _ready() -> void:
@@ -84,5 +85,12 @@ func equip_item_id(slot_idx: int, item_id: String) -> void:
 
 func get_equipped_items() -> Dictionary:
 	return current_data.get("equipped", {})
+
+func set_character_created(value: bool) -> void:
+	current_data["is_character_created"] = value
+	save_data()
+
+func is_character_created() -> bool:
+	return current_data.get("is_character_created", false)
 
 

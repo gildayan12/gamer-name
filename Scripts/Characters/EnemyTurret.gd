@@ -10,6 +10,9 @@ var player: Node2D
 var health_bar: ProgressBar
 var aim_line: Line2D
 
+var startup_timer: float = 2.0
+
+
 
 const PROJECTILE_SCENE = preload("res://Scenes/Characters/EnemyProjectile.tscn")
 
@@ -47,7 +50,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_frozen: return
 	
+	if startup_timer > 0:
+		startup_timer -= delta
+		return
+	
 	if cooldown_timer > 0:
+
 		cooldown_timer -= delta
 		
 	if player:

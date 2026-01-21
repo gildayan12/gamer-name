@@ -7,6 +7,8 @@ var tick_timer: float = 0.0
 var inner_radius: float = 100.0
 var max_radius: float = 160.0
 
+var shooter_player: Node2D = null
+
 func _ready() -> void:
 	# Hit Enemies (Layer 3)
 	set_collision_mask_value(3, true)

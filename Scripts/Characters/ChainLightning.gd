@@ -5,6 +5,7 @@ extends Node2D
 @export var bounce_range: float = 500.0
 
 var hit_enemies: Array = [] 
+var shooter_player: Node2D = null
 
 func setup(start_pos: Vector2, first_target: Node2D) -> void:
 	# 1. Visual Beam from Player to First Target
@@ -19,6 +20,16 @@ func setup(start_pos: Vector2, first_target: Node2D) -> void:
 	# 4. Auto-cleanup after visuals fade
 	await get_tree().create_timer(1.0).timeout
 	queue_free()
+
+# ... (omitted) ...
+
+func zap_enemy(enemy: Node2D) -> void:
+	hit_enemies.append(enemy)
+	if enemy.has_method("take_damage"):
+		enemy.take_damage(damage)
+		
+	if shooter_player and shooter_player.has_method("add_ultimate_charge"):
+		shooter_player.add_ultimate_charge(5.0) # 5 charge per hit chain
 
 func chain_to_next(current_target: Node2D, bounces_left: int) -> void:
 	if bounces_left <= 0: return
@@ -50,10 +61,7 @@ func find_nearest_enemy(from_pos: Vector2) -> Node2D:
 			
 	return nearest
 
-func zap_enemy(enemy: Node2D) -> void:
-	hit_enemies.append(enemy)
-	if enemy.has_method("take_damage"):
-		enemy.take_damage(damage)
+
 
 func create_lightning_arc(start: Vector2, end: Vector2) -> void:
 	var line = Line2D.new()

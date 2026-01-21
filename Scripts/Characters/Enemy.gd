@@ -39,6 +39,10 @@ func _ready() -> void:
 	health_bar.add_theme_stylebox_override("fill", sb)
 	
 	add_child(health_bar)
+	
+	# Check for active Time Freeze on spawn
+	if GameLoop.is_time_frozen:
+		freeze()
 
 
 func _physics_process(delta: float) -> void:
@@ -81,6 +85,8 @@ func take_damage(amount: int) -> void:
 
 	
 	if hp <= 0:
+		if player and player.has_method("add_ultimate_charge"):
+			player.add_ultimate_charge(5.0)
 		queue_free()
 
 func apply_knockback(force: Vector2) -> void:

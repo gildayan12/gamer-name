@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 SaveSystem="*res://Scripts/Systems/SaveSystem.gd"
+GameLoop="*res://Scripts/Systems/GameLoop.gd"
 
 [editor]
 

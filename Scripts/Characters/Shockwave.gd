@@ -7,6 +7,7 @@ extends Area2D
 
 var current_radius: float = 0.0
 var hit_enemies: Array = [] # Keep track to hit only once
+var shooter_player: Node2D = null
 
 func _ready() -> void:
 	# Hit Enemies (Layer 3)
@@ -36,7 +37,6 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, current_radius, 0, TAU, 64, Color(1.0, 0.6, 0.0, 0.8), 4.0) # Outer rim
 
 func _process(delta: float) -> void:
-	# Check for overlaps manually
 	var bodies = get_overlapping_bodies()
 	for body in bodies:
 		if body.is_in_group("enemy") and not body in hit_enemies:
@@ -48,7 +48,12 @@ func _process(delta: float) -> void:
 			if body.has_method("apply_knockback"):
 				var dir = (body.global_position - global_position).normalized()
 				body.apply_knockback(dir * push_force)
-				print("Shockwave hit enemy!")
+				
+			# Ult Charge
+			if shooter_player and shooter_player.has_method("add_ultimate_charge"):
+				shooter_player.add_ultimate_charge(3.0) # 3 charge per hit
+			
+			print("Shockwave hit enemy!")
 
 func _on_body_entered(body: Node2D) -> void:
 	# Backup method, but _process handles it

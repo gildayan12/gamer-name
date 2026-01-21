@@ -1,0 +1,14 @@
+res://Scenes/Characters/EnemyBoss.tscn
+res://Scripts/Characters/EnemyBoss.gd
+res://Scripts/Characters/Player.gd
+res://Scripts/Systems/SaveSystem.gd
+res://Scripts/UI/MainMenu.gd
+res://Scripts/Characters/Enemy.gd
+res://Scripts/Systems/GameLoop.gd
+res://Scripts/Systems/WaveManager.gd
+res://Scenes/UI/UpgradeShop.tscn
+res://Scripts/UI/UpgradeShop.gd
+res://Scripts/Characters/MagicMissile.gd
+res://Scripts/Characters/Projectile.gd
+res://Scripts/Characters/Sword.gd
+res://Scripts/UI/HUD.gd
