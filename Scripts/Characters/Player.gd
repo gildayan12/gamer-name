@@ -111,7 +111,8 @@ var shield_active_time: float = 0.0 # Track how long shield is up
 var shield_line: Line2D 
 var aim_line: Line2D 
 var time_freeze_layer: CanvasLayer 
-var boss_pointer_line: Line2D 
+var boss_arrow: Line2D 
+var enemy_arrow: Line2D 
 
 func _ready() -> void:
 	add_to_group("player")
@@ -131,12 +132,19 @@ func _ready() -> void:
 	shield_line.visible = false
 	add_child(shield_line) 
 	
-	# Create Boss Pointer Line
-	boss_pointer_line = Line2D.new()
-	boss_pointer_line.width = 15.0 # Thick
-	boss_pointer_line.default_color = Color(1.0, 0.0, 1.0, 0.7) # Purple/Pink
-	boss_pointer_line.visible = false
-	add_child(boss_pointer_line)
+	# Create Boss Arrow (Purple)
+	boss_arrow = Line2D.new()
+	boss_arrow.width = 15.0
+	boss_arrow.default_color = Color(1.0, 0.0, 1.0, 0.7)
+	boss_arrow.visible = false
+	add_child(boss_arrow)
+
+	# Create Enemy Arrow (Orange)
+	enemy_arrow = Line2D.new()
+	enemy_arrow.width = 10.0
+	enemy_arrow.default_color = Color(1.0, 0.5, 0.0, 0.7)
+	enemy_arrow.visible = false
+	add_child(enemy_arrow)
 
 	chest_sprite.scale = Vector2(0.8, 0.8)
 	
@@ -272,50 +280,60 @@ func _spawn_grenade_projectile(index: int) -> void:
 	grenade.scale = Vector2.ONE * ability_radius_modifier
 
 func update_objective_pointer() -> void:
-	var target_node: Node2D = null
-	var pointer_color = Color(1.0, 0.0, 1.0, 0.7) # Default Boss Purple
-	
-	# 1. Check for Boss (Priority)
+	# 1. BOSS ARROW
 	var boss = get_tree().get_first_node_in_group("boss")
 	if boss:
-		target_node = boss
-		pointer_color = Color(1.0, 0.0, 1.0, 0.7) # Purple
+		update_arrow(boss_arrow, boss.global_position)
 	else:
-		# 2. Check for Low Enemy Count
-		var enemies = get_tree().get_nodes_in_group("enemy")
-		if enemies.size() > 0 and enemies.size() <= 5:
-			# Find Nearest
-			var nearest_dist = INF
-			for enemy in enemies:
-				var d = global_position.distance_to(enemy.global_position)
-				if d < nearest_dist:
-					nearest_dist = d
-					target_node = enemy
-			
-			pointer_color = Color(1.0, 0.5, 0.0, 0.7) # Orange for stragglers
-			
-	if not target_node:
-		boss_pointer_line.visible = false
-		return
+		boss_arrow.visible = false
+
+	# 2. ENEMY ARROW (Only if low count)
+	var enemies = get_tree().get_nodes_in_group("enemy")
+	if enemies.size() > 0 and enemies.size() <= 5:
+		var nearest_dist = INF
+		var nearest_enemy = null
 		
-	var to_target = target_node.global_position - global_position
+		for enemy in enemies:
+			var d = global_position.distance_to(enemy.global_position)
+			if d < nearest_dist:
+				nearest_dist = d
+				nearest_enemy = enemy
+		
+		if nearest_enemy:
+			update_arrow(enemy_arrow, nearest_enemy.global_position)
+		else:
+			enemy_arrow.visible = false
+	else:
+		enemy_arrow.visible = false
+
+func update_arrow(arrow: Line2D, target_pos: Vector2) -> void:
+	var to_target = target_pos - global_position
 	var dist = to_target.length()
 	
-	# Only show if far away (e.g. off screenish)
-	if dist > 600.0:
-		boss_pointer_line.visible = true
-		boss_pointer_line.default_color = pointer_color
-		boss_pointer_line.clear_points()
+	# Only show if off-screen (accounting for aspect ratio and zoom)
+	var viewport_size = get_viewport_rect().size
+	var zoom = Vector2.ONE
+	
+	var cam = get_node_or_null("Camera2D")
+	if cam:
+		zoom = cam.zoom
+		
+	var half_size = (viewport_size / zoom) / 2.0
+	
+	# Check if within viewport bounds (with slight margin)
+	var is_on_screen = abs(to_target.x) < half_size.x and abs(to_target.y) < half_size.y
+	
+	if not is_on_screen:
+		arrow.visible = true
+		arrow.clear_points()
 		
 		# Draw at fixed distance
 		var dir = to_target.normalized()
 		var start = dir * 100.0
 		var end = dir * 200.0
 		
-		# Simple arrow
-		# Reuse draw_aim_arrow logic but manually here to keep it simple
-		boss_pointer_line.add_point(start)
-		boss_pointer_line.add_point(end)
+		arrow.add_point(start)
+		arrow.add_point(end)
 		
 		# Arrowhead
 		var angle = dir.angle()
@@ -323,12 +341,12 @@ func update_objective_pointer() -> void:
 		var arrow_p1 = end - Vector2(head_len, head_len).rotated(angle + PI/4)
 		var arrow_p2 = end - Vector2(head_len, -head_len).rotated(angle - PI/4)
 		
-		boss_pointer_line.add_point(arrow_p1)
-		boss_pointer_line.add_point(end)
-		boss_pointer_line.add_point(arrow_p2)
+		arrow.add_point(arrow_p1)
+		arrow.add_point(end)
+		arrow.add_point(arrow_p2)
 		
 	else:
-		boss_pointer_line.visible = false
+		arrow.visible = false
 
 func draw_shield_line() -> void:
 	shield_line.visible = true

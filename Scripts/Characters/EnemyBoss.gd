@@ -15,19 +15,21 @@ var startup_timer: float = 2.0 # 2s delay before acting
 
 
 func _ready() -> void:
+	add_to_group("boss")
 	max_hp = 1000
 	hp = max_hp
 	speed = 0.0 # Stationary
-	
-	super._ready()
 	
 	# Scale Visuals
 	if has_node("Visuals"):
 		$Visuals.scale = Vector2(1.5, 1.5)
 		$Visuals.modulate = Color(1.0, 0.2, 0.2) # Reddish
 	elif has_node("Sprite2D"):
+		sprite = $Sprite2D # Fix for Hit Flash
 		$Sprite2D.scale = Vector2(1.5, 1.5)
 		$Sprite2D.modulate = Color(1.0, 0.2, 0.2)
+
+	super._ready()
 
 		
 	# Adjust Health Bar

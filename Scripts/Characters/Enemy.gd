@@ -1,20 +1,29 @@
 extends CharacterBody2D
 
-@export var speed: float = 150.0
+@export var speed: float = 120.0
 @export var max_hp: int = 100
 var hp: int = max_hp
+
+@export var damage: int = 10
+@export var xp_value: int = 1
+
 var attack_cooldown: float = 0.0
 var knockback_velocity: Vector2 = Vector2.ZERO
 var speed_modifier: float = 1.0
 
+const DAMAGE_NUMBER_SCENE = preload("res://Scenes/UI/DamageNumber.tscn")
+
 var player: Node2D
 var health_bar: ProgressBar
+
+@onready var visuals: Node2D = $Visuals
+@onready var sprite: Sprite2D = $Visuals/Sprite2D
 
 
 func _ready() -> void:
 	add_to_group("enemy")
 	
-	# Layer 3: Enemy
+	# Layer 3: Enemyssssswa 
 	collision_layer = 4
 	collision_mask = 3 # Player + World
 
@@ -40,6 +49,18 @@ func _ready() -> void:
 	
 	add_child(health_bar)
 	
+	# Setup Shader Material if not present (Programmatic approach)
+	# Ideally, set this in Editor, but let's ensure it exists
+	if sprite:
+		if not sprite.material:
+			var mat = ShaderMaterial.new()
+			mat.shader = load("res://Assets/Shaders/HitFlash.gdshader")
+			mat.resource_local_to_scene = true # Important so they don't all flash together
+			sprite.material = mat
+		else:
+			# Ensure local to scene
+			sprite.material.resource_local_to_scene = true
+			
 	# Check for active Time Freeze on spawn
 	if GameLoop.is_time_frozen:
 		freeze()
@@ -82,6 +103,9 @@ func take_damage(amount: int) -> void:
 	if health_bar:
 		health_bar.value = hp
 	print("Enemy hit! Damage: ", amount, " HP: ", hp)
+	
+	spawn_damage_number(amount)
+	flash_hit()
 
 	
 	if hp <= 0:
@@ -113,3 +137,16 @@ func unfreeze() -> void:
 	velocity = saved_velocity
 	set_physics_process(true)
 	# $AnimatedSprite.play()
+
+func spawn_damage_number(amount: int) -> void:
+	if not DAMAGE_NUMBER_SCENE: return
+	var dn = DAMAGE_NUMBER_SCENE.instantiate()
+	dn.global_position = global_position
+	get_tree().current_scene.add_child(dn) # Add to world
+	dn.setup(amount)
+
+func flash_hit() -> void:
+	if sprite and sprite.material:
+		var tw = create_tween()
+		sprite.material.set_shader_parameter("flash_modifier", 1.0)
+		tw.tween_method(func(v): sprite.material.set_shader_parameter("flash_modifier", v), 1.0, 0.0, 0.2)
