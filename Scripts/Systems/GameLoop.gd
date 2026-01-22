@@ -1,5 +1,6 @@
 extends Node
 
+# Phase 3: Visual Design & Assets
 # Global State for the Run
 enum Kit { GUN, MELEE, MAGE }
 var selected_kit: Kit = Kit.GUN
