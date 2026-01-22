@@ -15,4 +15,3 @@ func _ready() -> void:
 	if health_bar:
 		health_bar.size = Vector2(100, 8)
 		health_bar.position = Vector2(-50, -60) # Higher for the big tank
-

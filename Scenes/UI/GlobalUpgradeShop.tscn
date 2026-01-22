@@ -112,13 +112,14 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.3, 1, 0.3, 1)
 theme_override_font_sizes/font_size = 28
-text = "DEXTERITY"
+text = "SPEED"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="CardContainer/DexCard"]
 layout_mode = 2
 text = "+5% Move Speed
-2.5% Atk Speed"
+2.5% Atk Speed
+5% CDR"
 horizontal_alignment = 1
 
 [node name="Icon" type="TextureRect" parent="CardContainer/DexCard"]
@@ -149,13 +150,13 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.3, 0.6, 1, 1)
 theme_override_font_sizes/font_size = 28
-text = "INTELLIGENCE"
+text = "VITALITY"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="CardContainer/IntCard"]
 layout_mode = 2
-text = "+5% Cooldown Red.
-Spam More."
+text = "+20 Max HP
+Tank Up."
 horizontal_alignment = 1
 
 [node name="Icon" type="TextureRect" parent="CardContainer/IntCard"]

@@ -12,12 +12,17 @@ var knockback_velocity: Vector2 = Vector2.ZERO
 var speed_modifier: float = 1.0
 
 const DAMAGE_NUMBER_SCENE = preload("res://Scenes/UI/DamageNumber.tscn")
+const HIT_PARTICLES_SCENE = preload("res://Scenes/Characters/HitParticles.tscn")
 
 var player: Node2D
 var health_bar: ProgressBar
 
-@onready var visuals: Node2D = $Visuals
-@onready var sprite: Sprite2D = $Visuals/Sprite2D
+@export var visuals: Node2D = get_node_or_null("Visuals")
+@onready var sprite: Sprite2D = get_node_or_null("Visuals/Sprite2D")
+
+const VIAL_SCENE = preload("res://Scenes/Items/HealthVial.tscn")
+@export var drop_chance: float = 0.05
+
 
 
 func _ready() -> void:
@@ -90,7 +95,7 @@ func _physics_process(delta: float) -> void:
 				var collision = get_slide_collision(i)
 				var collider = collision.get_collider()
 				if collider.is_in_group("player") and collider.has_method("take_damage"):
-					var dir = (collider.global_position - global_position).normalized()
+					# var dir = (collider.global_position - global_position).normalized() # Unused
 					collider.take_damage(10, global_position)
 					attack_cooldown = 1.0 # 1 second cooldown
 					break
@@ -106,11 +111,19 @@ func take_damage(amount: int) -> void:
 	
 	spawn_damage_number(amount)
 	flash_hit()
+	spawn_hit_particles()
 
-	
 	if hp <= 0:
 		if player and player.has_method("add_ultimate_charge"):
 			player.add_ultimate_charge(5.0)
+		
+		# Drop Health Vial
+		if randf() < drop_chance:
+			if VIAL_SCENE:
+				var vial = VIAL_SCENE.instantiate()
+				get_parent().add_child(vial) # Add to Arena
+				vial.global_position = global_position
+		
 		queue_free()
 
 func apply_knockback(force: Vector2) -> void:
@@ -150,3 +163,10 @@ func flash_hit() -> void:
 		var tw = create_tween()
 		sprite.material.set_shader_parameter("flash_modifier", 1.0)
 		tw.tween_method(func(v): sprite.material.set_shader_parameter("flash_modifier", v), 1.0, 0.0, 0.2)
+
+func spawn_hit_particles() -> void:
+	if not HIT_PARTICLES_SCENE: return
+	
+	var p = HIT_PARTICLES_SCENE.instantiate()
+	p.global_position = global_position
+	get_tree().current_scene.add_child(p)

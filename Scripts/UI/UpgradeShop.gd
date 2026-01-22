@@ -39,9 +39,20 @@ func _ready() -> void:
 	%Card3.pressed.connect(func(): select_upgrade(2))
 
 func generate_cards() -> void:
+	# Cleanup any dynamic cards from previous runs
+	for child in $CardContainer.get_children():
+		if not child.name.begins_with("Card"): # Keep Card1, Card2, Card3
+			child.queue_free()
+
 	offered_upgrades.clear()
 	var current_kit = 0
-	if GameLoop: current_kit = GameLoop.selected_kit
+	
+	# Get Player for kit and HP check
+	var player = get_tree().get_first_node_in_group("player")
+	if GameLoop: 
+		current_kit = GameLoop.selected_kit
+	elif player:
+		current_kit = player.current_kit
 	
 	# Filter relevant upgrades
 	var relevant_pool = []
@@ -51,6 +62,12 @@ func generate_cards() -> void:
 			
 	relevant_pool.shuffle()
 	
+	# Check for Heal Condition
+	var needs_heal = false
+	if player and player.hp < player.max_hp:
+		needs_heal = true
+	
+	# Determine names
 	var kit_name = "Weapon"
 	var move_name = "Dodge"
 	var fire_term = "fire"
@@ -69,20 +86,51 @@ func generate_cards() -> void:
 			move_name = "Blink"
 			fire_term = "casts"
 
+	# Pick 3 standard upgrades
 	for i in range(3):
 		if relevant_pool.is_empty(): break
-		var upg = relevant_pool.pop_front()
-		offered_upgrades.append(upg)
+		offered_upgrades.append(relevant_pool.pop_front())
 		
-		var btn = get_node_or_null("%Card" + str(i+1))
-		if btn:
-			var desc = upg["desc"]
-			# Dynamic Text Replacement
-			desc = desc.replace("Weapons", kit_name)
-			desc = desc.replace("fire", fire_term)
-			desc = desc.replace("Dodge", move_name)
-			
-			btn.text = upg["name"] + "\n\n" + desc
+	# Add Heal if needed
+	if needs_heal:
+		offered_upgrades.append({
+			"name": "Emergency Aid",
+			"desc": "Recover +40 HP immediately.",
+			"type": "heal",
+			"val": 40
+		})
+
+	# Display Cards
+	for i in range(offered_upgrades.size()):
+		var upg = offered_upgrades[i]
+		var btn: Button
+		
+		if i < 3:
+			btn = get_node("%Card" + str(i+1))
+			# Ensure visible if it was hidden (though unlikely here)
+			btn.show()
+		else:
+			# Create dynamic button for 4th slot
+			btn = %Card1.duplicate()
+			btn.name = "DynamicCard" + str(i)
+			$CardContainer.add_child(btn)
+			# We need to connect signal for new button
+			btn.pressed.connect(func(): select_upgrade(i))
+		
+		# Setup Text
+		var desc = upg["desc"]
+		desc = desc.replace("Weapons", kit_name)
+		desc = desc.replace("fire", fire_term)
+		desc = desc.replace("Dodge", move_name)
+		
+		# Heal Styling Override
+		if upg["type"] == "heal":
+			btn.modulate = Color(0.5, 1.0, 0.5) # Tint Green
+		else:
+			btn.modulate = Color.WHITE
+		
+		btn.text = upg["name"] + "\n\n" + desc
+
 
 func select_upgrade(index: int) -> void:
 	if index >= offered_upgrades.size(): return
@@ -102,11 +150,14 @@ func apply_upgrade(upg: Dictionary) -> void:
 		"weapon_rate":
 			player.attack_speed_modifier += upg["val"]
 		"weapon_dmg":
-			player.weapon_damage_modifier += upg["val"]
+			player.weapon_damage_modifier *= (1.0 + upg["val"])
 		"mag_size":
 			player.magazine_size_modifier += int(upg["val"])
+			var effective_max = player.max_ammo + player.magazine_size_modifier
+			player.current_ammo = effective_max # Auto-Fill
+			player.ammo_updated.emit(player.current_ammo, effective_max)
 		"ability_dmg":
-			player.ability_damage_modifier += upg["val"]
+			player.ability_damage_modifier *= (1.0 + upg["val"])
 		"ability_cdr":
 			player.cooldown_modifier -= upg["val"]
 			player.cooldown_modifier = max(player.cooldown_modifier, 0.5)
@@ -121,6 +172,8 @@ func apply_upgrade(upg: Dictionary) -> void:
 			player.dodge_cooldown_modifier = max(player.dodge_cooldown_modifier, 0.5)
 		"shield_hp":
 			player.max_shield_modifier += upg["val"]
+		"heal":
+			player.heal(int(upg["val"]))
 
 func close_shop() -> void:
 	get_tree().paused = false

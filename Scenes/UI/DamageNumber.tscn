@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://Scripts/UI/DamageNumber.gd" id="1_script"]
 
 [node name="DamageNumber" type="Node2D"]
+z_index = 100
 script = ExtResource("1_script")
 
 [node name="Label" type="Label" parent="."]

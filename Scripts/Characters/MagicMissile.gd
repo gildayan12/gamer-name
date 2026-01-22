@@ -2,7 +2,7 @@ extends Area2D
 
 @export var speed: float = 500.0
 @export var damage: int = 15
-@export var range_dist: float = 600.0
+@export var range_dist: float = 1200.0
 var shooter_player: Node2D
 
 func _ready() -> void:

@@ -35,9 +35,9 @@ func _ready() -> void:
 func update_ui() -> void:
 	token_label.text = "BOSS TOKENS: " + str(GameLoop.boss_tokens)
 	
-	str_val_label.text = "Lvl " + str(GameLoop.global_stats["strength"]) + "\n(R-Click to Refund)"
-	dex_val_label.text = "Lvl " + str(GameLoop.global_stats["dexterity"]) + "\n(R-Click to Refund)"
-	int_val_label.text = "Lvl " + str(GameLoop.global_stats["intelligence"]) + "\n(R-Click to Refund)"
+	str_val_label.text = "DMG Lvl " + str(GameLoop.global_stats["strength"]) + "\n(R-Click to Refund)"
+	dex_val_label.text = "SPD Lvl " + str(GameLoop.global_stats["dexterity"]) + "\n(R-Click to Refund)"
+	int_val_label.text = "HP Lvl " + str(GameLoop.global_stats["intelligence"]) + "\n(R-Click to Refund)"
 	
 	# Enable/Disable buttons based on cost
 	var can_buy = GameLoop.boss_tokens > 0
@@ -84,8 +84,11 @@ func buy_stat(stat_name: String) -> void:
 		update_player_stats()
 
 func check_refund(event: InputEvent, stat_name: String) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		sell_stat(stat_name)
+	if event is InputEventMouseButton:
+		if event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+			print("Right Click detected on ", stat_name)
+			sell_stat(stat_name)
+			get_viewport().set_input_as_handled()
 
 func sell_stat(stat_name: String) -> void:
 	if GameLoop.global_stats[stat_name] > 0:

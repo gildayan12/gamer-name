@@ -29,6 +29,8 @@ const BAZOOKA_SCENE = preload("res://Scenes/Characters/ProjectileBazooka.tscn")
 const PROJECTILE_SCENE = preload("res://Scenes/Characters/Projectile.tscn")
 const MAGIC_MISSILE_SCENE = preload("res://Scenes/Characters/MagicMissile.tscn")
 const CHAIN_LIGHTNING_SCENE = preload("res://Scenes/Characters/ChainLightning.tscn")
+const SHIELD_SHATTER_SCENE = preload("res://Scenes/Characters/ShieldShatterParticles.tscn")
+const SHIELD_REGEN_SCENE = preload("res://Scenes/Characters/ShieldRegenParticles.tscn")
 const ACID_RAIN_SCENE = preload("res://Scenes/Characters/AcidRainDroplet.tscn")
 # New Melee Resources
 const SWORD_SCENE = preload("res://Scenes/Characters/Sword.tscn")
@@ -40,6 +42,7 @@ const ENEMY_SCENE = preload("res://Scenes/Characters/Enemy.tscn")
 const TURRET_SCENE = preload("res://Scenes/Characters/EnemyTurret.tscn")
 const TANK_SCENE = preload("res://Scenes/Characters/EnemyTank.tscn")
 const BOSS_SCENE = preload("res://Scenes/Characters/EnemyBoss.tscn")
+const HIT_PARTICLES_SCENE = preload("res://Scenes/Characters/HitParticles.tscn")
 
 
 
@@ -79,7 +82,7 @@ var max_shield_modifier: float = 1.0
 
 # Combat Stats
 const FIRE_RATE_SWORD: float = 0.95
-const FIRE_RATE_MAGE: float = 0.35  
+const FIRE_RATE_MAGE: float = 0.28  
 const FIRE_RATE_GUN: float = 0.2    
 const MAX_BLINK_DIST: float = 250.0
 
@@ -96,6 +99,8 @@ var is_aiming_grenade: bool = false
 # Blink State
 var is_aiming_blink: bool = false
 var is_aiming_ability: bool = false # For Chain Lightning
+var time_since_last_shot: float = 0.0
+var time_since_ammo_regen: float = 0.0
 
 
 # Shield State (Melee)
@@ -112,7 +117,11 @@ var shield_line: Line2D
 var aim_line: Line2D 
 var time_freeze_layer: CanvasLayer 
 var boss_arrow: Line2D 
-var enemy_arrow: Line2D 
+var enemy_arrow: Line2D
+
+# Screen Shake
+var shake_strength: float = 0.0
+var shake_decay: float = 5.0 
 
 func _ready() -> void:
 	add_to_group("player")
@@ -172,17 +181,42 @@ func _ready() -> void:
 	apply_global_stats()
 
 func apply_global_stats() -> void:
-	# Calculate Global Bonuses explicitly (Non-compounding)
+	# 1. DMG (Strength)
 	var str_bonus = 1.0 + (GameLoop.global_stats["strength"] * 0.1)
-	# var dex_bonus = 1.0 + (GameLoop.global_stats["dexterity"] * 0.05) # Unused local var
-	
-	# Set Global Modifier
 	global_damage_modifier = str_bonus
+
+	# 2. SPD (Dexterity) implies Speed, Attack Speed, CDR
+	var spd_level = GameLoop.global_stats["dexterity"]
+	# NOTE: Move/Attack Speed are calculated dynamically in _process/movement
 	
-	# Intelligence: +5% Cooldown Reduction (Calculated fresh)
-	# var cdr = GameLoop.global_stats["intelligence"] * 0.05 # Unused local var
+	# CDR from SPD (5% per level)
+	var cdr_from_spd = spd_level * 0.05
+	cooldown_modifier -= cdr_from_spd
+	dodge_cooldown_modifier -= cdr_from_spd # Also reduce Dodge/Shield cooldowns
 	
-	print("Global Stats Applied. Str: ", GameLoop.global_stats["strength"], " Dex: ", GameLoop.global_stats["dexterity"], " Int: ", GameLoop.global_stats["intelligence"])
+	# Clamp CDR
+	cooldown_modifier = max(cooldown_modifier, 0.2)
+	dodge_cooldown_modifier = max(dodge_cooldown_modifier, 0.2)
+
+	# 3. Vitality (Intelligence -> Max HP)
+	var vit_level = GameLoop.global_stats["intelligence"]
+	var hp_bonus = vit_level * 20.0
+	
+	# Determine Base HP (Use current max if first run, or define constants)
+	# Issue: Each call adds to base? No, equation is absolute.
+	# But if 'max_hp' was modified by something else?
+	# Let's assume standard base 100 for now.
+	# Actually, to be safe for TANK kit (if user had one), we need to know base.
+	# But player IS the class.
+	
+	max_hp = 100.0 + hp_bonus 
+	hp = max_hp 
+	
+	# Force HUD Update logic (if signal based)
+	# HUD uses _process to read max_hp/hp, but safe to emit if needed
+	# No specific signal for "Max HP Changed" in HUD, it reads property directly.
+	
+	print("Global Stats: DMG x", str_bonus, " SPD x", (1.0 + spd_level * 0.05), " HP: ", max_hp)
 
 func _process(delta: float) -> void:
 	if is_aiming_blink or is_aiming_ability: # Update for ability aim too
@@ -190,6 +224,8 @@ func _process(delta: float) -> void:
 	
 	# Boss/Objective Pointer Logic
 	update_objective_pointer()
+	
+	time_since_last_shot += delta
 
 	if is_shielding:
 		shield_active_time += delta
@@ -199,7 +235,7 @@ func _process(delta: float) -> void:
 		if shield_active_time >= 3.0:
 			drop_shield()
 	else:
-		# Recharge Shield Logic
+	# Recharge Shield Logic
 		# If not broken and below max (scaled by modifier)
 		var max_s = MAX_SHIELD_HP * max_shield_modifier
 		if not is_shield_broken and shield_hp < max_s:
@@ -208,8 +244,25 @@ func _process(delta: float) -> void:
 				# Regen 20 HP/sec
 				shield_hp += 20.0 * delta
 				shield_hp = min(shield_hp, max_s)
+				shield_updated.emit(shield_hp, max_s)
+
+	# 2. Ammo Regen REMOVED
+
 
 # ... (Previous code) ...
+
+	# 3. Screen Shake Logic
+	if shake_strength > 0:
+		shake_strength = lerp(shake_strength, 0.0, shake_decay * delta)
+		var cam = get_node_or_null("Camera2D")
+		if cam:
+			cam.offset = Vector2(
+				randf_range(-shake_strength, shake_strength),
+				randf_range(-shake_strength, shake_strength)
+			)
+
+func apply_shake(strength: float) -> void:
+	shake_strength = max(shake_strength, strength)
 
 func _draw() -> void:
 	if is_aiming_blink:
@@ -308,7 +361,7 @@ func update_objective_pointer() -> void:
 
 func update_arrow(arrow: Line2D, target_pos: Vector2) -> void:
 	var to_target = target_pos - global_position
-	var dist = to_target.length()
+	# var dist = to_target.length() # Unused
 	
 	# Only show if off-screen (accounting for aspect ratio and zoom)
 	var viewport_size = get_viewport_rect().size
@@ -443,15 +496,25 @@ func equip_kit(kit: Kit) -> void:
 		Kit.GUN:
 			print("Equipped Gun")
 			current_ult = UltType.BARRETT # Default Gun Ult
+			ammo_updated.emit(current_ammo, max_ammo) # Force UI
 		Kit.MELEE:
 			var sword = SWORD_SCENE.instantiate()
 			weapon_pivot.add_child(sword)
 			active_sword = sword
 			print("Equipped Sword")
 			current_ult = UltType.BEYBLADE # Default Melee Ult
+			shield_updated.emit(shield_hp, MAX_SHIELD_HP * max_shield_modifier) # Force UI
 		Kit.MAGE:
 			print("Equipped Mage Staff")
 			current_ult = UltType.TIME_FREEZE # Default Mage Ult
+
+func update_hud_stats() -> void:
+	# Called by HUD when it connects visuals
+	match current_kit:
+		Kit.GUN:
+			ammo_updated.emit(current_ammo, max_ammo)
+		Kit.MELEE:
+			shield_updated.emit(shield_hp, MAX_SHIELD_HP * max_shield_modifier)
 
 
 func _physics_process(delta: float) -> void:
@@ -657,6 +720,9 @@ func shoot_gun() -> void:
 		var effective_max = max_ammo + magazine_size_modifier
 		ammo_updated.emit(current_ammo, effective_max)
 		print("Bang! Ammo: ", current_ammo)
+		
+		# Reset Timer
+		time_since_last_shot = 0.0
 		
 		var projectile = PROJECTILE_SCENE.instantiate()
 		get_parent().add_child(projectile)
@@ -949,15 +1015,19 @@ func spawn_acid_rain_droplet() -> void:
 	var drop = ACID_RAIN_SCENE.instantiate()
 	get_parent().add_child(drop)
 	
-	# Spawn randomly around player's X, but high up Y
-	var random_x = global_position.x + randf_range(-600, 600)
-	var start_y = global_position.y - 500 # Slightly above screen
+	# Spawn across the entire screen width (relative to camera/player)
+	var viewport_rect = get_viewport_rect()
+	var screen_half_width = viewport_rect.size.x / 2.0
+	
+	# Add a margin so it covers edges too
+	var random_x = global_position.x + randf_range(-screen_half_width * 1.2, screen_half_width * 1.2)
+	var start_y = global_position.y - (viewport_rect.size.y / 2.0) - 100 # Just above screen top
 	
 	drop.global_position = Vector2(random_x, start_y)
 	
 	# Global Damage
 	if drop.get("damage"):
-		drop.damage = int(drop.damage * global_damage_modifier)
+		drop.damage = int(drop.damage * ability_damage_modifier * global_damage_modifier)
 	drop.shooter_player = self
 	
 func perform_beyblade() -> void:
@@ -971,21 +1041,25 @@ func perform_beyblade() -> void:
 	
 	# Global Damage
 	if beyblade.get("damage"):
-		beyblade.damage = int(beyblade.damage * global_damage_modifier)
+		beyblade.damage = int(beyblade.damage * ability_damage_modifier * global_damage_modifier)
 	beyblade.shooter_player = self
 	
 	print("BEYBLADE LET IT RIP!")
 	
-	# buff HP by 30%aa
+	# buff HP by 30% (Overheal style)
+	# We DO NOT raise max_hp, just give bonus current HP
 	var bonus_hp = max_hp * 0.3
-	max_hp += bonus_hp
 	hp += bonus_hp
+	
+	# Visual Feedback (Heal Number)
+	spawn_damage_number(int(bonus_hp), Color.GREEN)
 	print("Ultimate Buff! Max HP: ", max_hp, " HP: ", hp)
+	
+	shield_updated.emit(shield_hp, MAX_SHIELD_HP * max_shield_modifier) 
 	
 	await get_tree().create_timer(4.0).timeout
 	
-	# Remove buff
-	max_hp -= bonus_hp
+	# End: Clamp HP back to Max if we are still overhealed
 	if hp > max_hp:
 		hp = max_hp
 	
@@ -999,9 +1073,13 @@ func perform_roid_rage() -> void:
 	is_roid_raging = true
 	
 	# Apply Stats (Additive/Multiplicative correctly)
-	var bonus_hp = max_hp * 0.5 # +50% (Total 1.5x)
-	max_hp += bonus_hp
+	# Overheal Logic: +50% HP (No Max Increase)
+	var bonus_hp = max_hp * 0.5 
 	hp += bonus_hp
+	
+	# Visual Feedback
+	spawn_damage_number(int(bonus_hp), Color.GREEN)
+	shield_updated.emit(0, 0) # Force HUD update
 	
 	# Buff existing modifiers
 	move_speed_modifier *= 1.8
@@ -1016,7 +1094,7 @@ func perform_roid_rage() -> void:
 	await get_tree().create_timer(8.0).timeout
 	
 	# Revert Stats
-	max_hp -= bonus_hp
+	# Clamp HP if still overhealed
 	if hp > max_hp: hp = max_hp
 	
 	move_speed_modifier /= 1.8
@@ -1048,7 +1126,7 @@ func fire_ultimate() -> void:
 		
 		# Apply Global Damage Boost
 		if projectile.get("damage"):
-			projectile.damage = int(projectile.damage * global_damage_modifier)
+			projectile.damage = int(projectile.damage * ability_damage_modifier * global_damage_modifier)
 		projectile.shooter_player = self
 
 # Shield Logic
@@ -1070,6 +1148,11 @@ func drop_shield() -> void:
 		tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
 		await get_tree().create_timer(duration).timeout
 		can_shield = true
+		
+		# Regen Visual
+		var rp = SHIELD_REGEN_SCENE.instantiate()
+		add_child(rp)
+		rp.position = Vector2.ZERO
 
 func hit_shield(damage: int) -> void:
 	time_since_shield_hit = 0.0
@@ -1088,6 +1171,13 @@ func break_shield() -> void:
 	can_shield = false # Override the manual cooldown reset
 	
 	print("Shield Broken!")
+	
+	# Visuals
+	var p = SHIELD_SHATTER_SCENE.instantiate()
+	get_parent().add_child(p)
+	p.global_position = global_position
+	apply_shake(5.0)
+	
 	cooldown_updated.emit("dodge", 1.0)
 	var tw = create_tween()
 	# 8s Cooldown for broken shield
@@ -1095,10 +1185,17 @@ func break_shield() -> void:
 	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
 	
 	await get_tree().create_timer(duration).timeout
+	
 	is_shield_broken = false
-	shield_hp = MAX_SHIELD_HP # Full restore on return
+	shield_hp = MAX_SHIELD_HP * max_shield_modifier # Full restore on return
 	can_shield = true
+	shield_updated.emit(shield_hp, MAX_SHIELD_HP * max_shield_modifier)
 	print("Shield Restored")
+	
+	# Regen Visual
+	var rp = SHIELD_REGEN_SCENE.instantiate()
+	add_child(rp)
+	rp.position = Vector2.ZERO
 
 func take_damage(amount: int, source_pos: Vector2 = Vector2.ZERO) -> void:
 	# Check for Block
@@ -1123,6 +1220,8 @@ func take_damage(amount: int, source_pos: Vector2 = Vector2.ZERO) -> void:
 	# Regular Damage Logic
 	if hp <= 0: return # Already dead
 	
+	apply_shake(5.0) # Medium shake on hurt
+	
 	hp -= amount
 	if hp < 0: hp = 0
 	
@@ -1141,7 +1240,33 @@ func die() -> void:
 	velocity = Vector2.ZERO
 	set_physics_process(false)
 	
-	# TODO: Play Death Animation?
+	# Death Animation
+	# Death Animation
+	var tw = create_tween()
+	tw.set_parallel(true)
+	
+	# 1. Fall Over (Fast)
+	tw.tween_property(visuals, "rotation_degrees", 90.0, 0.4).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	
+	# 2. Bounce Effect (Vertical Jiggle on Impact)
+	var bounce_tw = create_tween()
+	bounce_tw.tween_interval(0.4) # Wait for fall
+	# Bounce Up
+	bounce_tw.tween_property(visuals, "position:y", -20.0, 0.15).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	# Land
+	bounce_tw.tween_property(visuals, "position:y", 0.0, 0.15).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BOUNCE)
+	
+	# 3. Fade Out (Slower)
+	tw.tween_property(visuals, "modulate", Color(1, 0, 0, 0), 1.5).set_delay(0.2) # Fade to red/transparent
+	
+	# Blood Spatter
+	for i in range(3):
+		var p = HIT_PARTICLES_SCENE.instantiate()
+		get_parent().add_child(p)
+		p.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
+		p.modulate = Color(0.8, 0.0, 0.0) # Red particles
+		
+	await get_tree().create_timer(1.2).timeout
 	
 	# Show Game Over Screen
 	var hud = get_tree().get_first_node_in_group("hud") # Assumes HUD is in group 'hud'
@@ -1222,3 +1347,19 @@ func start_boss_encounter() -> void:
 	# Let's try flanking left/right for now.
 	get_parent().add_child(tank2)
 	tank2.global_position = boss_pos + Vector2(200, 0)
+func heal(amount: int) -> void:
+	hp = min(hp + amount, max_hp)
+	spawn_damage_number(amount, Color.GREEN)
+	# Force HUD update if needed, but _process handles it
+	
+func spawn_damage_number(amount: int, color: Color = Color.WHITE) -> void:
+	var dn = load("res://Scenes/UI/DamageNumber.tscn").instantiate()
+	get_parent().add_child(dn) # Add to same parent as player (Arena)
+	dn.global_position = global_position + Vector2(0, -50) # Above head
+	
+	if dn.has_method("setup"):
+		dn.setup(amount) 
+		dn.modulate = color 
+	else:
+		dn.get_node("Label").text = str(amount)
+		dn.modulate = color

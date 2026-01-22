@@ -19,6 +19,7 @@ func _ready() -> void:
 	max_hp = 1000
 	hp = max_hp
 	speed = 0.0 # Stationary
+	drop_chance = 0.0 # Boss logic is separate (Win Token)
 	
 	# Scale Visuals
 	if has_node("Visuals"):
@@ -70,6 +71,10 @@ func fire_homing_missile() -> void:
 
 func take_damage(amount: int) -> void:
 	super.take_damage(amount)
+	
+	if player and player.has_method("apply_shake"):
+		player.apply_shake(3.0) # Impact shake for Boss
+		
 	check_teleport_threshold()
 
 func check_teleport_threshold() -> void:

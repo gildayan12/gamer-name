@@ -15,6 +15,11 @@ var startup_timer: float = 2.0
 
 
 const PROJECTILE_SCENE = preload("res://Scenes/Characters/EnemyProjectile.tscn")
+const DAMAGE_NUMBER_SCENE = preload("res://Scenes/UI/DamageNumber.tscn")
+const HIT_PARTICLES_SCENE = preload("res://Scenes/Characters/HitParticles.tscn")
+const VIAL_SCENE = preload("res://Scenes/Items/HealthVial.tscn")
+
+@export var drop_chance: float = 0.05
 
 func _ready() -> void:
 	add_to_group("enemy")
@@ -87,8 +92,43 @@ func take_damage(amount: int) -> void:
 	hp -= amount
 	if health_bar:
 		health_bar.value = hp
+		
+	# Visuals
+	spawn_damage_number(amount)
+	flash_hit()
+	spawn_hit_particles()
+	
 	if hp <= 0:
+		# Drop Health Vial
+		if randf() < drop_chance:
+			if VIAL_SCENE:
+				var vial = VIAL_SCENE.instantiate()
+				get_parent().add_child(vial)
+				vial.global_position = global_position
+				
 		queue_free()
+
+func spawn_damage_number(amount: int) -> void:
+	if not DAMAGE_NUMBER_SCENE: return
+	var dn = DAMAGE_NUMBER_SCENE.instantiate()
+	dn.global_position = global_position
+	get_tree().current_scene.add_child(dn)
+	dn.setup(amount)
+
+func flash_hit() -> void:
+	if has_node("Sprite2D"):
+		var sprite = $Sprite2D
+		if sprite.material:
+			var tw = create_tween()
+			sprite.material.set_shader_parameter("flash_modifier", 1.0)
+			tw.tween_method(func(v): sprite.material.set_shader_parameter("flash_modifier", v), 1.0, 0.0, 0.2)
+			
+func spawn_hit_particles() -> void:
+	if not HIT_PARTICLES_SCENE: return
+	
+	var p = HIT_PARTICLES_SCENE.instantiate()
+	p.global_position = global_position
+	get_tree().current_scene.add_child(p)
 
 # Compatibility with Time Freeze
 var is_frozen: bool = false

@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Items/HealthVial.gd" id="1_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_1"]
+radius = 16.0
+
+[node name="HealthVial" type="Area2D"]
+collision_layer = 8
+collision_mask = 3
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_1")
+
+[node name="Visuals" type="Node2D" parent="."]
+
+[node name="VialShape" type="Polygon2D" parent="Visuals"]
+color = Color(0.1, 0.9, 0.3, 1)
+polygon = PackedVector2Array(0, -12, 8, -4, 8, 8, 0, 12, -8, 8, -8, -4)
+
+[node name="Cap" type="Polygon2D" parent="Visuals"]
+color = Color(0.6, 0.4, 0.2, 1)
+polygon = PackedVector2Array(-4, -12, 4, -12, 4, -14, -4, -14)
+
+[node name="Glow" type="Polygon2D" parent="Visuals"]
+color = Color(0.8, 1, 0.8, 0.4)
+polygon = PackedVector2Array(-4, -4, 0, -8, 4, -4)
+
+[node name="DespawnTimer" type="Timer" parent="."]
+one_shot = true

@@ -28,24 +28,36 @@ const GLOBAL_SHOP_SCENE = preload("res://Scenes/UI/GlobalUpgradeShop.tscn")
 @onready var player = get_tree().get_first_node_in_group("player")
 
 # UI Layer
-var ui_layer: CanvasLayer
+var hud_instance: CanvasLayer
 
 func _ready() -> void:
-	# Create a CanvasLayer to hold UI elements like Shop
-	ui_layer = CanvasLayer.new()
-	add_child(ui_layer)
-	
-	# Wait for player to be ready
-	await get_tree().create_timer(1.0).timeout
-	
-	# Init HUD (safe to add now as player should be ready)
-	# Using load() instead of preload() to prevent cyclic dependency crash
+	# Init HUD directly
 	var hud_scene = load("res://Scenes/UI/HUD.tscn")
 	if hud_scene:
-		var hud = hud_scene.instantiate()
-		ui_layer.add_child(hud)
+		print("WaveManager: Spawning HUD...")
+		hud_instance = hud_scene.instantiate()
+		add_child(hud_instance)
+		print("WaveManager: HUD Spawned.")
+	else:
+		printerr("WaveManager: FAILED TO LOAD HUD SCENE!")
 	
+	add_to_group("wave_manager")
 	start_wave(1)
+
+func debug_skip_to_wave_5_end() -> void:
+	print("DEBUG: Skipping to End of Wave 5 (Boss Kill)...")
+	current_wave = 5
+	
+	# Kill all enemies
+	get_tree().call_group("enemy", "queue_free")
+	get_tree().call_group("boss", "queue_free")
+	
+	enemies_remaining = 0
+	enemies_to_spawn = 0
+	is_wave_active = false
+	
+	# Trigger Wave End logic
+	end_wave()
 
 func _process(delta: float) -> void:
 	if not is_wave_active: return
@@ -105,7 +117,13 @@ func spawn_enemy() -> void:
 	
 	# Spawn in circle around player
 	var angle = randf() * TAU
-	var spawn_pos = player.global_position + Vector2(cos(angle), sin(angle)) * spawn_radius
+	
+	# Calculate safe spawn distance (always off-screen)
+	var viewport_size = get_viewport().get_visible_rect().size
+	# Using length/2 covers the corners. Adding margin.
+	var dynamic_radius = max(spawn_radius, (viewport_size.length() / 2.0) + 100.0)
+	
+	var spawn_pos = player.global_position + Vector2(cos(angle), sin(angle)) * dynamic_radius
 	enemy.global_position = spawn_pos
 	
 	enemies_to_spawn -= 1
@@ -128,16 +146,31 @@ func start_upgrade_phase() -> void:
 		GameLoop.boss_tokens += 1
 		print("Boss Defeated! Tokens: ", GameLoop.boss_tokens)
 		
-		# Open Global Shop
+		# Open Global Shop (Wrap in CanvasLayer)
+		var layer = CanvasLayer.new()
+		add_child(layer)
+		
 		var shop = GLOBAL_SHOP_SCENE.instantiate()
-		ui_layer.add_child(shop)
-		shop.shop_closed.connect(_on_global_shop_closed)
+		layer.add_child(shop)
+		
+		# Clean up layer when shop closes
+		shop.shop_closed.connect(func(): 
+			_on_global_shop_closed()
+			layer.queue_free()
+		)
 		
 	else:
-		# Normal Upgrade Shop
+		# Normal Upgrade Shop (Wrap in CanvasLayer)
+		var layer = CanvasLayer.new()
+		add_child(layer)
+		
 		var shop = UPGRADE_SHOP_SCENE.instantiate()
-		ui_layer.add_child(shop)
-		shop.upgrade_selected.connect(_on_upgrade_selected)
+		layer.add_child(shop)
+		
+		shop.upgrade_selected.connect(func(type):
+			_on_upgrade_selected(type)
+			layer.queue_free()
+		)
 
 func _on_global_shop_closed() -> void:
 	print("Wave Manager: Global Shop Closed. Starting Next Wave.")
