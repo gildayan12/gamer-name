@@ -121,8 +121,8 @@ func take_damage(amount: int) -> void:
 		if randf() < drop_chance:
 			if VIAL_SCENE:
 				var vial = VIAL_SCENE.instantiate()
-				get_parent().add_child(vial) # Add to Arena
 				vial.global_position = global_position
+				get_parent().call_deferred("add_child", vial) # Add to Arena safely
 		
 		queue_free()
 
