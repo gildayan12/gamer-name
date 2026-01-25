@@ -112,10 +112,15 @@ func take_damage(amount: int) -> void:
 	spawn_damage_number(amount)
 	flash_hit()
 	spawn_hit_particles()
+	AudioManager.play_sfx("enemy_hit", 0.9 + randf() * 0.2) # Pitch var
 
 	if hp <= 0:
+		AudioManager.play_sfx("enemy_die")
 		if player and player.has_method("add_ultimate_charge"):
 			player.add_ultimate_charge(5.0)
+		
+		if GameLoop:
+			GameLoop.report_kill(is_in_group("boss"))
 		
 		# Drop Health Vial
 		if randf() < drop_chance:

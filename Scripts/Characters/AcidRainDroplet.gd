@@ -25,6 +25,10 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemy") and body.has_method("take_damage"):
 		body.take_damage(damage)
+		
+		# Play short sizzle (0.5s), max 3 identical sounds at once
+		AudioManager.play_sfx_random_clip("acid_hit", 0.5, 3)
+		
 		queue_free()
 	elif body.name == "TileMap":
 		# Splash effect could go here

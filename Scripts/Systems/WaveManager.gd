@@ -173,9 +173,21 @@ func start_upgrade_phase() -> void:
 		)
 
 func _on_global_shop_closed() -> void:
-	print("Wave Manager: Global Shop Closed. Starting Next Wave.")
-	await get_tree().create_timer(1.0).timeout
-	start_wave(current_wave + 1)
+	print("Wave Manager: Global Shop Closed. Run Complete!")
+	# Trigger Win Report via HUD
+	if hud_instance.has_method("show_mission_report"):
+		hud_instance.show_mission_report(true) # true = WIN
+	else:
+		# Fallback if HUD method name differs (it was show_game_over before)
+		# Let's add show_mission_report to HUD first or reuse logic
+		trigger_victory_fallback()
+
+func trigger_victory_fallback() -> void:
+	# Manual instantiation if HUD update pending
+	var report = load("res://Scenes/UI/MissionReport.tscn").instantiate()
+	hud_instance.add_child(report)
+	report.setup(true)
+	get_tree().paused = true
 
 func _on_upgrade_selected(_upgrade_type) -> void:
 	print("Wave Manager: Upgrade Complete. Starting Next Wave.")

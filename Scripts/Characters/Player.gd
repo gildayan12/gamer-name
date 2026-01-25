@@ -720,6 +720,7 @@ func shoot_gun() -> void:
 		var effective_max = max_ammo + magazine_size_modifier
 		ammo_updated.emit(current_ammo, effective_max)
 		print("Bang! Ammo: ", current_ammo)
+		AudioManager.play_sfx("shoot")
 		
 		# Reset Timer
 		time_since_last_shot = 0.0
@@ -772,6 +773,7 @@ func shoot_magic() -> void:
 		attack_cooldown = FIRE_RATE_MAGE / (attack_speed_modifier * dex_mod)
 		
 		print("Magic Missile Fired! Dmg: ", missile.damage)
+		AudioManager.play_sfx("shoot") # Placeholder for magic sound
 
 const SLASH_SCENE = preload("res://Scenes/Characters/SlashProjectile.tscn")
 
@@ -800,10 +802,12 @@ func swing_sword() -> void:
 		active_sword.swing()
 		
 	print("Slash Fired! Dmg: ", slash.damage)
+	AudioManager.play_sfx("shoot") # Placeholder for swing
 
 func perform_dodge() -> void:
 	can_dodge = false
 	is_dodging = true
+	AudioManager.play_sfx("player_dash")
 	
 	# Visual Feedback (Ghost effect)
 	modulate.a = 0.5
@@ -1002,14 +1006,23 @@ func perform_piss_rain() -> void:
 	print("ACID RAIN INCOMING!")
 	
 	# Rain for 6 seconds
-	# We can use a simple Loop with delays or a Timer
 	var duration = 6.0
+	
+	# Start Audio Loop (Rain/Thunder Atmosphere)
+	var audio_player = AudioManager.play_sfx_loop("ult_acid_rain_loop", duration)
+	
 	var spawn_rate = 0.05 # Fast rain
 	var end_time = Time.get_ticks_msec() + (duration * 1000)
 	
 	while Time.get_ticks_msec() < end_time:
 		spawn_acid_rain_droplet()
 		await get_tree().create_timer(spawn_rate).timeout
+		
+	# Stop Loop cleanly
+	if audio_player:
+		var tw = create_tween()
+		tw.tween_property(audio_player, "volume_db", -80.0, 0.5) 
+		tw.tween_callback(audio_player.stop)
 
 func spawn_acid_rain_droplet() -> void:
 	var drop = ACID_RAIN_SCENE.instantiate()
@@ -1221,9 +1234,13 @@ func take_damage(amount: int, source_pos: Vector2 = Vector2.ZERO) -> void:
 	if hp <= 0: return # Already dead
 	
 	apply_shake(5.0) # Medium shake on hurt
+	AudioManager.play_sfx("player_hurt")
 	
 	hp -= amount
 	if hp < 0: hp = 0
+	
+	if GameLoop:
+		GameLoop.report_damage_taken(amount)
 	
 	print("Player took full damage: ", amount, " HP: ", hp)
 	

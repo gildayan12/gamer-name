@@ -108,9 +108,17 @@ func _ready() -> void:
 					ability_label_node.text = "ZAP"
 					if stat_label: stat_label.visible = false
 
+const MISSION_REPORT_SCENE = preload("res://Scenes/UI/MissionReport.tscn")
+
 func show_game_over(waves: int) -> void:
-	game_over_screen.visible = true
-	wave_label.text = "Waves Survived: " + str(waves - 1)
+	# game_over_screen.visible = true # Old screen
+	# wave_label.text = "Waves Survived: " + str(waves - 1)
+	
+	if MISSION_REPORT_SCENE:
+		var report = MISSION_REPORT_SCENE.instantiate()
+		add_child(report)
+		report.setup(false) # false = Loss/Death
+		
 	get_tree().paused = true # Pause everything
 
 func on_retry() -> void:

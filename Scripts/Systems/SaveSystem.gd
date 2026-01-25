@@ -12,8 +12,50 @@ var current_data = {
 	"current_skin_tone": 0, # Int index
 	"current_outfit_id": "", # String ID
 	"high_score": 0,
-	"is_character_created": false
+	"is_character_created": false,
+	"kit_xp": {
+		"0": 0, "1": 0, "2": 0
+	},
+	"kit_levels": {
+		"0": 1, "1": 1, "2": 1
+	}
 }
+
+func get_xp(kit_id: int) -> int:
+	var k = str(kit_id)
+	if not "kit_xp" in current_data: current_data["kit_xp"] = {}
+	return current_data["kit_xp"].get(k, 0)
+
+func get_level(kit_id: int) -> int:
+	var k = str(kit_id)
+	if not "kit_levels" in current_data: current_data["kit_levels"] = {}
+	return current_data["kit_levels"].get(k, 1)
+
+func add_xp(kit_id: int, amount: int) -> void:
+	var k = str(kit_id)
+	var current_xp = get_xp(kit_id)
+	var current_lvl = get_level(kit_id)
+	
+	current_xp += amount
+	
+	# Check Level Up
+	# Formula: Level * 1000 XP required per level
+	var xp_required = current_lvl * 1000
+	
+	while current_xp >= xp_required:
+		current_xp -= xp_required
+		current_lvl += 1
+		xp_required = current_lvl * 1000
+		print("KIT LEVEL UP! Kit:", k, " New Level:", current_lvl)
+		
+		# FUTURE: Here is where we check for Rewards (Banners, Skins)
+		
+	if not "kit_xp" in current_data: current_data["kit_xp"] = {}
+	if not "kit_levels" in current_data: current_data["kit_levels"] = {}
+	
+	current_data["kit_xp"][k] = current_xp
+	current_data["kit_levels"][k] = current_lvl
+	save_data()
 
 func _ready() -> void:
 	load_data()
