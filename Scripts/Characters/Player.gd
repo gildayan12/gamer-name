@@ -11,14 +11,39 @@ signal shield_updated(current, max_val)
 @export var input_enabled: bool = true # Control flag for Menus/Cutscenes
 
 @onready var visuals: Node2D = $Visuals
-@onready var body_sprite: Sprite2D = $Visuals/BodySprite
+@onready var skeleton: Skeleton2D = %Skeleton
+@onready var torso_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/TorsoSprite
+@onready var neck_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/Neck/NeckSprite
+@onready var head_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/Neck/Head/HeadSprite
 
-@onready var head_sprite: Sprite2D = $Visuals/HeadSprite
-@onready var chest_sprite: Sprite2D = $Visuals/ChestSprite
-@onready var legs_sprite: Sprite2D = $Visuals/LegsSprite
-@onready var feet_sprite: Sprite2D = $Visuals/FeetSprite
+# Skeletal Sprites (Right Side)
+@onready var upper_arm_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmR/UpperArmSprite
+@onready var forearm_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR/ForearmSprite
+@onready var thigh_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/ThighSprite
+@onready var calf_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/CalfR/CalfSprite
+@onready var foot_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/CalfR/FootR/FootSprite
 
-@onready var weapon_pivot: Node2D = $Visuals/WeaponPivot
+# Skeletal Sprites (Left Side)
+@onready var upper_arm_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmL/UpperArmSpriteL
+@onready var forearm_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmL/ForearmL/ForearmSpriteL
+@onready var thigh_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/ThighSpriteL
+@onready var calf_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/CalfL/CalfSpriteL
+@onready var foot_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/CalfL/FootSpriteL
+
+@onready var aim_root: Node2D = $Visuals/AimRoot
+@onready var weapon_group: Node2D = $Visuals/AimRoot/WeaponGroup
+# weapon_pivot removed. Use weapon_group instead. 
+@onready var weapon_pivot: Node2D = $Visuals/AimRoot/WeaponGroup/WeaponPivot
+# --- 8-DIRECTION SYSTEM ---
+enum BodyView { FRONT, BACK, SIDE }
+var current_body_view: BodyView = BodyView.SIDE
+var current_skin_data: Dictionary = {}
+@export var current_skin_name: String = "default"
+@export var run_speed_scale: float = 1.0
+
+# State for Visuals
+var last_facing_dir: int = 1
+
 
 
 
@@ -99,8 +124,11 @@ var is_aiming_grenade: bool = false
 # Blink State
 var is_aiming_blink: bool = false
 var is_aiming_ability: bool = false # For Chain Lightning
+var is_aiming_ultimate: bool = false # For Barrett/Bazooka
 var time_since_last_shot: float = 0.0
 var time_since_ammo_regen: float = 0.0
+var charge_audio: AudioStreamPlayer = null # Track the charging loop
+var last_shot_audio_time: int = 0 # For Audio Throttling (msec)
 
 
 # Shield State (Melee)
@@ -155,22 +183,13 @@ func _ready() -> void:
 	enemy_arrow.visible = false
 	add_child(enemy_arrow)
 
-	chest_sprite.scale = Vector2(0.8, 0.8)
+
 	
 	# Explicit Collision Setup
 	# Layer 1: Environment, Layer 2: Player, Layer 3: Enemy, Layer 4: Enemy Projectile
+	# Layer 1: Environment, Layer 2: Player, Layer 3: Enemy, Layer 4: Enemy Projectile
 	collision_layer = 2 
 	collision_mask = 1 | 4 # World + Enemies
-
-	if has_node("/root/SaveSystem"):
-		set_skin_tone(SaveSystem.get_skin_tone())
-		var outfit_ids = SaveSystem.get_equipped_items()
-		if "chest_hoodie_red" in outfit_ids.values():
-			equip_item(load("res://Assets/Items/Chest/HoodieRed.tres"))
-		elif "chest_hoodie_blue" in outfit_ids.values():
-			equip_item(load("res://Assets/Items/Chest/HoodieBlue.tres"))
-	else:
-		set_skin_tone(0)
 
 	# Initialize Weapon from GameLoop
 	if GameLoop:
@@ -179,7 +198,67 @@ func _ready() -> void:
 		equip_kit(current_kit)
 		
 	apply_global_stats()
+	
+	# Load the default skin (8-direction system)
+	load_skin(current_skin_name)
 
+	# FORCE LEFT ARM IK
+	# call_deferred("setup_left_arm_ik")
+
+func setup_left_arm_ik() -> void:
+	if not skeleton: return
+	
+	# 1. Ensure we have a target
+	var target = skeleton.find_child("LeftHandTarget", true, false)
+	if not target:
+		print("IK ERROR: LeftHandTarget not found in skeleton!")
+		return
+		
+	print("IK: Found target at ", target.name)
+	
+	# 2. Get Modification Stack
+	var stack = skeleton.get_modification_stack()
+	if not stack:
+		stack = SkeletonModificationStack2D.new()
+		skeleton.set_modification_stack(stack)
+		
+	# 3. Setup TwoBoneIK
+	# Check if we already have one, or make new
+	var mod_count = stack.get_modification_count()
+	var ik_mod: SkeletonModification2DTwoBoneIK = null
+	
+	if mod_count > 0:
+		var existing = stack.get_modification(0)
+		if existing is SkeletonModification2DTwoBoneIK:
+			ik_mod = existing
+	
+	if not ik_mod:
+		ik_mod = SkeletonModification2DTwoBoneIK.new()
+		stack.add_modification(ik_mod)
+		
+	# 4. Configure Bones (Use NodePaths relative to Skeleton)
+	# Bone Indices usually: 7=UpperArmL, 8=ForearmL (Check your import if different, but usually stable)
+	# Easier to set by Name if possible, but Resource uses paths/indices.
+	
+	# Let's trust the current scene setup or set explicitly
+	var upper_node = skeleton.find_child("UpperArmL", true, false)
+	var lower_node = skeleton.find_child("ForearmL", true, false)
+	
+	if not upper_node or not lower_node: 
+		print("IK ERROR: Left Arm Bones not found!")
+		return
+
+	ik_mod.target_nodepath = skeleton.get_path_to(target)
+	ik_mod.set_joint_one_bone2d_node(skeleton.get_path_to(upper_node))
+	ik_mod.set_joint_two_bone2d_node(skeleton.get_path_to(lower_node))
+	
+	stack.enabled = true
+	ik_mod.enabled = true
+	
+	# Force an update
+	skeleton.execute_modifications(0.0, 0)
+	print("IK: Left Arm IK Force-Enabld via Script")
+	
 func apply_global_stats() -> void:
 	# 1. DMG (Strength)
 	var str_bonus = 1.0 + (GameLoop.global_stats["strength"] * 0.1)
@@ -219,7 +298,7 @@ func apply_global_stats() -> void:
 	print("Global Stats: DMG x", str_bonus, " SPD x", (1.0 + spd_level * 0.05), " HP: ", max_hp)
 
 func _process(delta: float) -> void:
-	if is_aiming_blink or is_aiming_ability: # Update for ability aim too
+	if is_aiming_blink or is_aiming_ability or is_aiming_ultimate: # Update for ability aim too
 		queue_redraw()
 	
 	# Boss/Objective Pointer Logic
@@ -273,8 +352,8 @@ func _draw() -> void:
 		var dist = min(mouse_local.length(), MAX_BLINK_DIST)
 		draw_line(Vector2.ZERO, dir * dist, Color(0.2, 0.6, 1.0, 0.5), 2.0)
 		
-	if is_aiming_ability:
-		# Draw Aim Line for Grenade / Chain Lightning
+	if is_aiming_ability or is_aiming_ultimate:
+		# Draw Aim Line for Grenade / Chain Lightning / Ultimates
 		var mouse_local = get_local_mouse_position()
 		var dist = mouse_local.length()
 		var max_dist = MAX_THROW_DIST if current_kit == Kit.GUN else 600.0
@@ -452,41 +531,12 @@ func movement() -> void:
 
 
 
-# Skin Tones
-const SKIN_COLORS = [
-	Color(0.96, 0.80, 0.60), 
-	Color(0.80, 0.60, 0.40), 
-	Color(0.50, 0.35, 0.20)  
-]
-
-
-
-func set_skin_tone(index: int) -> void:
-	if index >= 0 and index < SKIN_COLORS.size():
-		body_sprite.modulate = SKIN_COLORS[index]
-		if has_node("/root/SaveSystem"):
-			SaveSystem.set_skin_tone(index)
-
-func equip_item(item: ApparelItem) -> void:
-	if item == null: return
-	
-	var target_sprite: Sprite2D
-	match item.slot:
-		ApparelItem.Slot.HEAD: target_sprite = head_sprite
-		ApparelItem.Slot.CHEST: target_sprite = chest_sprite
-		ApparelItem.Slot.LEGS: target_sprite = legs_sprite
-		ApparelItem.Slot.FEET: target_sprite = feet_sprite
-	
-	if target_sprite:
-		target_sprite.texture = item.texture
-		target_sprite.modulate = item.tint
-		if has_node("/root/SaveSystem"):
-			SaveSystem.equip_item_id(item.slot, item.id)
+# Skin Tones and Clothing - REMOVED
 
 func equip_kit(kit: Kit) -> void:
 	current_kit = kit
 	# Clear old weapons
-	for child in weapon_pivot.get_children():
+	for child in weapon_group.get_children():
 		child.queue_free()
 	
 	active_sword = null
@@ -499,7 +549,7 @@ func equip_kit(kit: Kit) -> void:
 			ammo_updated.emit(current_ammo, max_ammo) # Force UI
 		Kit.MELEE:
 			var sword = SWORD_SCENE.instantiate()
-			weapon_pivot.add_child(sword)
+			weapon_group.add_child(sword)
 			active_sword = sword
 			print("Equipped Sword")
 			current_ult = UltType.BEYBLADE # Default Melee Ult
@@ -532,20 +582,93 @@ func _physics_process(delta: float) -> void:
 		move_and_slide() 
 	else:
 		movement()
-		aiming()
+		update_visuals(delta)
 		move_and_slide()
 
+# --- PROCEDURAL ANIMATION SYSTEM REMOVED ---
 
 
-func aiming() -> void:
+
+func update_visuals(_delta: float) -> void:
+	# --- 8-DIRECTION SYSTEM ---
 	var mouse_pos = get_global_mouse_position()
-	if weapon_pivot:
-		weapon_pivot.look_at(mouse_pos)
+	var aim_dir = (mouse_pos - global_position).normalized()
+	var aim_angle = aim_dir.angle()  # -PI to PI
+	var aim_deg = rad_to_deg(aim_angle)
+	
+	# 1. DETERMINE BODY VIEW (Front/Back/Side)
+	var new_view = get_body_view_from_aim(aim_deg)
+	
+	if new_view != current_body_view:
+		current_body_view = new_view
+		apply_skin_view(new_view)
+	
+	# 2. FLIP CHARACTER VISUALS
 	if visuals:
-		if mouse_pos.x < global_position.x:
-			visuals.scale.x = -1
+		if aim_dir.x < 0:
+			visuals.scale.x = -abs(visuals.scale.x)
 		else:
-			visuals.scale.x = 1
+			visuals.scale.x = abs(visuals.scale.x)
+	
+	# 3. ROTATE AIM ROOT
+	if aim_root:
+		aim_root.look_at(mouse_pos)
+	
+	# 4. LAYER SWAPPING (Weapon Behind/Front)
+	if weapon_group:
+		if aim_dir.y < -0.20:  # Looking UP
+			weapon_group.z_index = -1
+		elif aim_dir.y > 0.20:  # Looking DOWN
+			weapon_group.z_index = 0
+	
+	# 5. LEG ANIMATION - SKELETAL (TODO: implement procedural walk)
+	# Note: legs_sprite is now Node2D container, not AnimatedSprite2D
+	# Skeletal walk animation will be driven by the Skeleton2D bones
+	pass
+
+## Determine which body view to use based on aim angle (degrees)
+## Determine which body view to use based on aim angle (degrees)
+func get_body_view_from_aim(_deg: float) -> BodyView:
+	return BodyView.SIDE # Always Side View for this system
+
+## Apply textures for the current view from loaded skin
+func apply_skin_view(view: BodyView) -> void:
+	if current_skin_data.is_empty():
+		return
+	
+	# Mapping key is always "side" since we simplified the dict
+	var textures = current_skin_data.get("side", {})
+	
+	if textures.is_empty(): return
+	
+	# Apply to all sprite slots
+	if torso_sprite: torso_sprite.texture = textures.get("torso")
+	if neck_sprite: neck_sprite.texture = textures.get("neck")
+	if head_sprite: head_sprite.texture = textures.get("head")
+	
+	# Helper to apply texture if node exists
+	var apply = func(node: Sprite2D, key: String):
+		if node and textures.get(key):
+			node.texture = textures[key]
+			
+	apply.call(upper_arm_sprite, "upper_arm")
+	apply.call(forearm_sprite, "forearm")
+	apply.call(thigh_sprite, "thigh")
+	apply.call(calf_sprite, "calf")
+	apply.call(foot_sprite, "foot")
+	
+	# Apply to Left (Back) side
+	apply.call(upper_arm_l_sprite, "upper_arm")
+	apply.call(forearm_l_sprite, "forearm")
+	apply.call(thigh_l_sprite, "thigh")
+	apply.call(calf_l_sprite, "calf")
+	apply.call(foot_l_sprite, "foot")
+
+## Load and apply a skin by name
+func load_skin(skin_name: String) -> void:
+	current_skin_name = skin_name
+	current_skin_data = SkinManager.load_skin(skin_name)
+	apply_skin_view(current_body_view)
 
 # Input for Manual Reload and Single Clicks
 func _unhandled_input(event: InputEvent) -> void:
@@ -579,46 +702,90 @@ func _unhandled_input(event: InputEvent) -> void:
 		if current_kit == Kit.MELEE and is_shielding:
 			drop_shield()
 		
+	# Cancel Ability / Ultimate (Right Click)
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		if is_aiming_ability:
+			is_aiming_ability = false
+			queue_redraw()
+			# Audio Feedback
+			if current_kit == Kit.GUN:
+				AudioManager.play_sfx("grenade_safety")
+				print("Grenade Canceled")
+			# Stop looping audio
+			if charge_audio:
+				charge_audio.stop()
+				charge_audio = null
+			return
+
+		if is_aiming_ultimate:
+			is_aiming_ultimate = false
+			queue_redraw()
+			# "Fast" gun switch off (Pitch shifted up for quick cancel, slightly quieter)
+			AudioManager.play_sfx("gun_switch_off", 1.2, -4.0) 
+			print("Ultimate Canceled")
+			return
+
 	if event.is_action_pressed("ability"):
 		if current_kit == Kit.GUN and can_grenade:
 			is_aiming_ability = true # Reuse for Grenade too
+			AudioManager.play_sfx("grenade_pin") # Pin Pull
 		elif current_kit == Kit.MELEE and can_shockwave:
 			perform_shockwave()
 		elif current_kit == Kit.MAGE and can_chain_lightning:
 			is_aiming_ability = true
+			# Start Charge Audio
+			if charge_audio: charge_audio.stop()
+			charge_audio = AudioManager.play_sfx_loop("lightning_charge", 5.0, 1.0, -15.0) # 5s max hold, -15dB quiet
 			
 	if event.is_action_released("ability"):
 		if is_aiming_ability:
 			is_aiming_ability = false
 			queue_redraw() # Clear Aim Lines
+			
+			# Stop Charge Audio
+			if charge_audio:
+				charge_audio.stop()
+				charge_audio = null
+			
 			if current_kit == Kit.GUN:
+				AudioManager.play_sfx("grenade_throw")
+				# Spoon "ping" just after throw
+				get_tree().create_timer(0.05).timeout.connect(func(): AudioManager.play_sfx("grenade_spoon"))
 				throw_grenade()
 			elif current_kit == Kit.MAGE:
 				perform_chain_lightning()
 		
+	# Ultimate Input Handling (Aim/Fire/Cancel)
 	if event.is_action_pressed("ultimate"):
 		if ultimate_charge >= 100.0:
-			# Verify the ultimate matches the kit
-			var is_valid = false
-			match current_kit:
-				Kit.GUN: is_valid = (current_ult == UltType.BARRETT or current_ult == UltType.BAZOOKA)
-				Kit.MELEE: is_valid = (current_ult == UltType.BEYBLADE or current_ult == UltType.ROID_RAGE)
-				Kit.MAGE: is_valid = (current_ult == UltType.TIME_FREEZE or current_ult == UltType.PISS_RAIN)
+			var valid_aim_ult = false
 			
-			if is_valid:
-				match current_ult:
-					UltType.BARRETT, UltType.BAZOOKA:
-						fire_ultimate()
-					UltType.BEYBLADE:
-						perform_beyblade()
-					UltType.ROID_RAGE:
-						perform_roid_rage()
-					UltType.TIME_FREEZE:
-						perform_time_freeze()
-					UltType.PISS_RAIN:
-						perform_piss_rain()
-			else:
-				print("Cannot use this ultimate with current kit!")
+			match current_kit:
+				Kit.GUN: 
+					# Gun Ults (Barrett/Bazooka) need Aiming
+					if current_ult == UltType.BARRETT or current_ult == UltType.BAZOOKA:
+						is_aiming_ultimate = true
+						valid_aim_ult = true
+						# GUN SWITCH OFF sound on aim start
+						AudioManager.play_sfx("gun_switch_off")
+						queue_redraw()
+						
+				Kit.MELEE:
+					if current_ult == UltType.BEYBLADE: perform_beyblade()
+					elif current_ult == UltType.ROID_RAGE: perform_roid_rage()
+				Kit.MAGE:
+					if current_ult == UltType.TIME_FREEZE: perform_time_freeze()
+					elif current_ult == UltType.PISS_RAIN: perform_piss_rain()
+			
+			if not valid_aim_ult:
+				# Instant cast ults handled in switch
+				pass
+
+	if event.is_action_released("ultimate"):
+		if is_aiming_ultimate:
+			is_aiming_ultimate = false
+			queue_redraw()
+			fire_ultimate()
 
 
 	# DEBUG: Simulate Damage with 'K'
@@ -644,6 +811,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			# Refresh stats just in case
 			apply_global_stats()
 			print("Current Stats: ", GameLoop.global_stats)
+
+		if event.keycode == KEY_P:
+			# Toggle "Machine Gun Mode"
+			if attack_speed_modifier < 5.0:
+				attack_speed_modifier = 10.0 # Insane speed 10x
+				print("DEBUG: Machine Gun Mode ON (10x Speed)")
+			else:
+				attack_speed_modifier = 1.0
+				print("DEBUG: Machine Gun Mode OFF")
+
+		if event.keycode == KEY_O:
+			# Toggle "Rapid Fire Mode"
+			if attack_speed_modifier < 2.0:
+				attack_speed_modifier = 5.0 # Fast speed 5x
+				print("DEBUG: Rapid Fire Mode ON (5x Speed)")
+			else:
+				attack_speed_modifier = 1.0
+				print("DEBUG: Rapid Fire Mode OFF")
 
 
 		
@@ -715,22 +900,52 @@ func shoot_gun() -> void:
 		start_reload()
 		return
 
-	if weapon_pivot:
+	if weapon_group:
 		current_ammo -= 1
 		var effective_max = max_ammo + magazine_size_modifier
 		ammo_updated.emit(current_ammo, effective_max)
-		print("Bang! Ammo: ", current_ammo)
-		AudioManager.play_sfx("shoot")
+		# Audio Throttling Logic
+		var current_time = Time.get_ticks_msec()
+		
+		# Define Audio Cap (5x Speed)
+		# Base rate is 0.2s (5 shots/sec). 5x speed = 25 shots/sec = 40ms interval.
+		var audio_min_interval = 40 # ms
+		
+		# Calculate Current Speed Multiplier
+		var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
+		var total_speed_mult = attack_speed_modifier * dex_mod
+		
+		# Volume Reduction: -10.0 db base
+		var base_vol = -10.0
+		
+		if total_speed_mult <= 5.0:
+			# Normal Playback
+			AudioManager.play_sfx("shoot", 1.0, base_vol, 0.04)
+			last_shot_audio_time = current_time
+		else:
+			# Throttled Playback (Speed > 5x)
+			if current_time - last_shot_audio_time >= audio_min_interval:
+				# Calculate Pitch Boost based on excess speed
+				var excess_speed = total_speed_mult - 5.0
+				var pitch_boost = 1.0 + (excess_speed * 0.03)
+				
+				AudioManager.play_sfx("shoot", pitch_boost, base_vol, 0.04)
+				last_shot_audio_time = current_time
 		
 		# Reset Timer
 		time_since_last_shot = 0.0
 		
 		var projectile = PROJECTILE_SCENE.instantiate()
 		get_parent().add_child(projectile)
-		projectile.global_position = weapon_pivot.global_position
-		projectile.global_rotation = weapon_pivot.global_rotation
 		
-		projectile.global_rotation = weapon_pivot.global_rotation
+		# Use the Right Hand as the spawn point if possible, otherwise weapon_group
+		var spawn_pos = weapon_group.global_position
+		var spawn_rot = weapon_group.global_rotation
+		
+		# Optional: Try to spawn from the actual hand/gun tip if finding the node
+		# But sticking to weapon_group for stability for now.
+		projectile.global_position = spawn_pos
+		projectile.global_rotation = spawn_rot
 		
 		# Apply Damage: Base * WeaponMod * GlobalMod
 		var total_dmg = 10.0 * weapon_damage_modifier * global_damage_modifier
@@ -738,13 +953,20 @@ func shoot_gun() -> void:
 		projectile.shooter_player = self
 		
 		# Attack Speed: Base * WeaponSpeedMod (Wave) * GlobalSpeedMod (Dex)
-		var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
-		var total_atk_speed = attack_speed_modifier * dex_mod
+		# NOTE: dex_mod and total_speed_mult (total_atk_speed) calculated above in Audio Throttling Logic
 		
-		attack_cooldown = FIRE_RATE_GUN / total_atk_speed
+		attack_cooldown = FIRE_RATE_GUN / total_speed_mult
 		
 		if current_ammo <= 0:
 			start_reload()
+			
+# Skins
+
+
+
+
+
+
 			
 func add_ultimate_charge(amount: float) -> void:
 	if current_ult == UltType.NONE: return
@@ -757,11 +979,11 @@ func add_ultimate_charge(amount: float) -> void:
 		pass
 
 func shoot_magic() -> void:
-	if weapon_pivot:
+	if weapon_group:
 		var missile = MAGIC_MISSILE_SCENE.instantiate()
 		get_parent().add_child(missile)
-		missile.global_position = weapon_pivot.global_position
-		missile.global_rotation = weapon_pivot.global_rotation
+		missile.global_position = weapon_group.global_position
+		missile.global_rotation = weapon_group.global_rotation
 		missile.shooter_player = self 
 		
 		# Apply Damage: Base * WeaponMod * GlobalMod (Mage Shot is Primary Weapon)
@@ -773,15 +995,17 @@ func shoot_magic() -> void:
 		attack_cooldown = FIRE_RATE_MAGE / (attack_speed_modifier * dex_mod)
 		
 		print("Magic Missile Fired! Dmg: ", missile.damage)
-		AudioManager.play_sfx("shoot") # Placeholder for magic sound
+		AudioManager.play_sfx("shoot_magic", 1.0, 10.0, 0.15) # 15% Pitch + 10dB Boost
 
 const SLASH_SCENE = preload("res://Scenes/Characters/SlashProjectile.tscn")
+
+
 
 func swing_sword() -> void:
 	var slash = SLASH_SCENE.instantiate()
 	get_parent().add_child(slash)
-	slash.global_position = weapon_pivot.global_position
-	slash.global_rotation = weapon_pivot.global_rotation
+	slash.global_position = weapon_group.global_position
+	slash.global_rotation = weapon_group.global_rotation
 	
 	# Attack Speed
 	var dex_mod = (1.0 + (GameLoop.global_stats["dexterity"] * 0.05))
@@ -802,12 +1026,12 @@ func swing_sword() -> void:
 		active_sword.swing()
 		
 	print("Slash Fired! Dmg: ", slash.damage)
-	AudioManager.play_sfx("shoot") # Placeholder for swing
 
 func perform_dodge() -> void:
 	can_dodge = false
 	is_dodging = true
-	AudioManager.play_sfx("player_dash")
+	# Pitch Shift: ±6% (range 4-8%)
+	AudioManager.play_sfx("player_dash", 1.0, 0.0, 0.06)
 	
 	# Visual Feedback (Ghost effect)
 	modulate.a = 0.5
@@ -886,6 +1110,8 @@ func perform_blink() -> void:
 		global_position = mouse_pos
 		
 	print("Blink!")
+	# Pitch Shift: ±3% (range 2-4%)
+	AudioManager.play_sfx("teleport", 1.0, 0.0, 0.03)
 	
 	cooldown_updated.emit("dodge", 1.0)
 	var tw = create_tween()
@@ -925,6 +1151,9 @@ func perform_shockwave() -> void:
 func perform_chain_lightning() -> void:
 	can_chain_lightning = false
 	
+	# Play Cast Sound (Always plays)
+	AudioManager.play_sfx("lightning_cast")
+	
 	# Raycast Logic (Hitscan)
 	var space_state = get_world_2d().direct_space_state
 	var mouse_pos = get_global_mouse_position()
@@ -951,13 +1180,13 @@ func perform_chain_lightning() -> void:
 	if result and result.collider.is_in_group("enemy"):
 		# Hit Enemy
 		print("Hitscan: Hit Enemy!")
-		chain_manager.setup(weapon_pivot.global_position, result.collider)
+		chain_manager.setup(weapon_group.global_position, result.collider)
 		# NOTE: Ultimate Charge is now handled by chain_manager per-hit!
 	else:
 		# Whiff / Hit Wall
 		print("Hitscan: Miss/Wall")
 		var end_pos = result.position if result else (global_position + dir * max_range)
-		chain_manager.create_lightning_arc(weapon_pivot.global_position, end_pos)
+		chain_manager.create_lightning_arc(weapon_group.global_position, end_pos)
 		
 		# Manually trigger cleanup for whiff
 		await get_tree().create_timer(0.3).timeout
@@ -1127,15 +1356,17 @@ func fire_ultimate() -> void:
 	var projectile
 	if current_ult == UltType.BARRETT:
 		projectile = BARRETT_SCENE.instantiate()
+		AudioManager.play_sfx("ult_barrett", 1.0, -2.0)
 		print("ULTIMATE: Barrett Fired!")
 	elif current_ult == UltType.BAZOOKA:
 		projectile = BAZOOKA_SCENE.instantiate()
+		AudioManager.play_sfx("ult_bazooka_fire")
 		print("ULTIMATE: Bazooka Fired!")
 		
 	if projectile:
 		get_parent().add_child(projectile)
-		projectile.global_position = weapon_pivot.global_position
-		projectile.global_rotation = weapon_pivot.global_rotation
+		projectile.global_position = weapon_group.global_position
+		projectile.global_rotation = weapon_group.global_rotation
 		
 		# Apply Global Damage Boost
 		if projectile.get("damage"):
@@ -1227,7 +1458,12 @@ func take_damage(amount: int, source_pos: Vector2 = Vector2.ZERO) -> void:
 			hit_shield(amount)
 			var chip_damage = int(amount * 0.2)
 			hp -= chip_damage
+			if hp < 0: hp = 0
 			print("Blocked! Shield took ", amount, " damage. Player took ", chip_damage, " chip damage. HP: ", hp)
+			
+			if hp <= 0:
+				die()
+			
 			return # Blocked
 			
 	# Regular Damage Logic

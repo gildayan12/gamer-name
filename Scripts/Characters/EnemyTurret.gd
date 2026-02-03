@@ -88,7 +88,7 @@ func shoot() -> void:
 	proj.global_rotation = global_rotation
 	print("Turret fired at player!")
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, source: String = "gun") -> void:
 	hp -= amount
 	if health_bar:
 		health_bar.value = hp
@@ -97,6 +97,9 @@ func take_damage(amount: int) -> void:
 	spawn_damage_number(amount)
 	flash_hit()
 	spawn_hit_particles()
+	
+	# Turrets are metal -> Heavy Sound
+	AudioManager.play_sfx("enemy_hit_heavy", 0.9 + randf() * 0.2)
 	
 	if hp <= 0:
 		# Drop Health Vial

@@ -134,5 +134,3 @@ func set_character_created(value: bool) -> void:
 
 func is_character_created() -> bool:
 	return current_data.get("is_character_created", false)
-
-

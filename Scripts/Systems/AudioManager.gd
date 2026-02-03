@@ -113,30 +113,62 @@ func play_sfx_loop(key: String, duration: float = 0.0, pitch_scale: float = 1.0,
 		
 	return null
 
-func play_sfx(key: String, pitch_scale: float = 1.0, volume_db: float = 0.0) -> void:
+# Track last played index to avoid repetition
+var last_played_indices: Dictionary = {}
+
+func play_sfx(key: String, pitch_scale: float = 1.0, volume_db: float = 0.0, pitch_variance: float = 0.0) -> AudioStreamPlayer:
+	# DEBUG TRACE
+	print("AudioManager: Requesting -> ", key)
+	
 	if not sound_db.has(key) or sound_db[key].is_empty():
 		# Silent fail in prod
 		if OS.is_debug_build():
 			print_rich("[color=yellow][Audio Missing][/color] " + key)
-		return
+		return null
 	
-	# Pick random variant
+	# Pick random variant (No Repeat Logic)
 	var streams: Array = sound_db[key]
-	var stream = streams.pick_random()
+	var count = streams.size()
+	var idx = 0
 	
-	if not stream: return
+	if count > 1:
+		# Try to pick a new index
+		var last = last_played_indices.get(key, -1)
+		idx = randi() % count
+		
+		# Allow up to 5 retries to find a different one
+		var retries = 0
+		while idx == last and retries < 5:
+			idx = randi() % count
+			retries += 1
+			
+		last_played_indices[key] = idx
+	else:
+		idx = 0
+	
+	var stream = streams[idx]
+	if not stream: return null
 	
 	# Find free player
 	var player = _get_free_sfx_player()
 	if player:
 		player.stream = stream
-		player.pitch_scale = pitch_scale
+		
+		# Pitch Variance
+		if pitch_variance > 0.0:
+			var p_mod = randf_range(1.0 - pitch_variance, 1.0 + pitch_variance)
+			player.pitch_scale = pitch_scale * p_mod
+		else:
+			player.pitch_scale = pitch_scale
 		
 		# Add slight volume variance (+/- 1.5 db) to prevent "machine gun" fatigue
 		var vol_variance = randf_range(-1.5, 1.5)
 		player.volume_db = volume_db + vol_variance
 		
 		player.play()
+		return player
+	
+	return null
 
 func play_music(key: String, _crossfade: float = 1.0) -> void:
 	if current_music_key == key: return

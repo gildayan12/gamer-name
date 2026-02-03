@@ -22,13 +22,57 @@ var health_bar: ProgressBar
 
 const VIAL_SCENE = preload("res://Scenes/Items/HealthVial.tscn")
 @export var drop_chance: float = 0.05
+@export var is_armored: bool = false # Bosses/Tanks: True -> Metal Sound
 
+# ...
 
+func take_damage(amount: int, source: String = "gun") -> void:
+	hp -= amount
+	if health_bar:
+		health_bar.value = hp
+	print("Enemy hit! Damage: ", amount, " HP: ", hp)
+	
+	spawn_damage_number(amount)
+	flash_hit()
+	spawn_hit_particles()
+	
+	# Audio Context Logic
+	if is_armored:
+		# Metallic 'Clang' for Tanks/Bosses
+		AudioManager.play_sfx("enemy_hit_heavy", 0.9 + randf() * 0.2)
+	else:
+		match source:
+			"sword":
+				# Visceral Flesh/Cut Sound
+				AudioManager.play_sfx("enemy_hit_blade", 0.9 + randf() * 0.2)
+			"magic":
+				# Maybe unique later, default for now
+				AudioManager.play_sfx("enemy_hit_standard", 0.9 + randf() * 0.2)
+			_:
+				# "gun" or default (Hitmarker)
+				AudioManager.play_sfx("enemy_hit_standard", 1.0, 0.0, 0.05)
+	
+	if hp <= 0:
+		AudioManager.play_sfx("enemy_die")
+		if player and player.has_method("add_ultimate_charge"):
+			player.add_ultimate_charge(5.0)
+		
+		if GameLoop:
+			GameLoop.report_kill(is_in_group("boss"))
+		
+		# Drop Health Vial
+		if randf() < drop_chance:
+			if VIAL_SCENE:
+				var vial = VIAL_SCENE.instantiate()
+				vial.global_position = global_position
+				get_parent().call_deferred("add_child", vial) # Add to Arena safely
+		
+		queue_free()
 
 func _ready() -> void:
 	add_to_group("enemy")
 	
-	# Layer 3: Enemyssssswa 
+	# Layer 3: Enemy 
 	collision_layer = 4
 	collision_mask = 3 # Player + World
 
@@ -96,40 +140,13 @@ func _physics_process(delta: float) -> void:
 				var collider = collision.get_collider()
 				if collider.is_in_group("player") and collider.has_method("take_damage"):
 					# var dir = (collider.global_position - global_position).normalized() # Unused
+					# Collision attack uses default 'hit'
 					collider.take_damage(10, global_position)
 					attack_cooldown = 1.0 # 1 second cooldown
 					break
 		
 		# Face player
 		look_at(player.global_position)
-
-func take_damage(amount: int) -> void:
-	hp -= amount
-	if health_bar:
-		health_bar.value = hp
-	print("Enemy hit! Damage: ", amount, " HP: ", hp)
-	
-	spawn_damage_number(amount)
-	flash_hit()
-	spawn_hit_particles()
-	AudioManager.play_sfx("enemy_hit", 0.9 + randf() * 0.2) # Pitch var
-
-	if hp <= 0:
-		AudioManager.play_sfx("enemy_die")
-		if player and player.has_method("add_ultimate_charge"):
-			player.add_ultimate_charge(5.0)
-		
-		if GameLoop:
-			GameLoop.report_kill(is_in_group("boss"))
-		
-		# Drop Health Vial
-		if randf() < drop_chance:
-			if VIAL_SCENE:
-				var vial = VIAL_SCENE.instantiate()
-				vial.global_position = global_position
-				get_parent().call_deferred("add_child", vial) # Add to Arena safely
-		
-		queue_free()
 
 func apply_knockback(force: Vector2) -> void:
 	knockback_velocity = force

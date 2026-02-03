@@ -4,6 +4,7 @@ func _ready() -> void:
 	speed = 80.0 # Much slower
 	max_hp = 300 # Tanky
 	hp = max_hp
+	is_armored = true # Metal Sound
 	super._ready() # Call base class for grouping and layers
 	
 	# Scale visuals

@@ -18,6 +18,7 @@ func _ready() -> void:
 	add_to_group("boss")
 	max_hp = 1000
 	hp = max_hp
+	is_armored = true # Metal Sound
 	speed = 0.0 # Stationary
 	drop_chance = 0.0 # Boss logic is separate (Win Token)
 	
@@ -69,8 +70,8 @@ func fire_homing_missile() -> void:
 	missile.rotation = rotation
 	print("BOSS: Fired Homing Missile!")
 
-func take_damage(amount: int) -> void:
-	super.take_damage(amount)
+func take_damage(amount: int, source: String = "gun") -> void:
+	super.take_damage(amount, source)
 	
 	if player and player.has_method("apply_shake"):
 		player.apply_shake(3.0) # Impact shake for Boss

@@ -19,6 +19,12 @@ config/icon="res://icon.svg"
 SaveSystem="*res://Scripts/Systems/SaveSystem.gd"
 GameLoop="*res://Scripts/Systems/GameLoop.gd"
 AudioManager="*res://Scripts/Systems/AudioManager.gd"
+SkinManager="*res://Scripts/Managers/SkinManager.gd"
+
+[display]
+
+window/stretch/aspect="ignore"
+window/vsync/vsync_mode=0
 
 [editor]
 
@@ -71,3 +77,11 @@ reload={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":82,"key_label":0,"unicode":114,"location":0,"echo":false,"script":null)
 ]
 }
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+anti_aliasing/quality/msaa_2d=2
+textures/dpi/allow_hidpi=true
+textures/stretch/scale_mode="fractional"
+textures/stretch/mode="disabled"

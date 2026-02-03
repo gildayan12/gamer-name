@@ -23,7 +23,7 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemy"): # Assuming enemies will be in this group
 		if body.has_method("take_damage"):
-			body.take_damage(damage)
+			body.take_damage(damage, "gun")
 			if shooter_player and shooter_player.has_method("add_ultimate_charge"):
 				print("Bullet Hit! Adding Charge.") # Debug
 				shooter_player.add_ultimate_charge(2.5)

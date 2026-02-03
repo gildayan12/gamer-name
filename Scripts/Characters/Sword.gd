@@ -18,6 +18,7 @@ func swing() -> void:
 	
 	# Play swing animation
 	anim.play("swing")
+	AudioManager.play_sfx("swing", 1.0, 0.0, 0.1) # 10% Pitch Var
 	await anim.animation_finished
 	
 	collision.disabled = true
@@ -26,7 +27,7 @@ func swing() -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemy"):
 		if body.has_method("take_damage"):
-			body.take_damage(damage)
+			body.take_damage(damage, "sword")
 			# Find player to credit ult charge
 			var player = get_tree().get_first_node_in_group("player")
 			if player and player.has_method("add_ultimate_charge"):

@@ -1,39 +1,251 @@
-[gd_scene load_steps=4 format=3 uid="uid://b8j2x0p1q4x5y"]
+[gd_scene load_steps=15 format=3 uid="uid://b8j2x0p1q4x5y"]
 
-[ext_resource type="Script" path="res://Scripts/Characters/Player.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://icon.svg" id="2_icon"]
+[ext_resource type="Script" uid="uid://b05odyctbo1s8" path="res://Scripts/Characters/Player.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://x0yotc4aq7t7" path="res://Assets/Skins/default/side/neck.png" id="3_shd1k"]
+[ext_resource type="Texture2D" uid="uid://c7bni1q30ffcg" path="res://Assets/Skins/default/side/torso.png" id="3_torso"]
+[ext_resource type="Texture2D" uid="uid://ctjoej55fh4a1" path="res://Assets/Skins/default/side/head.png" id="4_5kd0c"]
+[ext_resource type="Texture2D" uid="uid://cfpcvj0s6yln5" path="res://Assets/Skins/default/side/upper_arm.png" id="4_uarm"]
+[ext_resource type="Texture2D" uid="uid://cxfl3yyufnl1m" path="res://Assets/Skins/default/front/forearm.png" id="4_w6cdd"]
+[ext_resource type="Texture2D" uid="uid://b1jiy6txmillp" path="res://Assets/Skins/default/side/forearm.png" id="5_farm"]
+[ext_resource type="Texture2D" uid="uid://ojck4jgt1nv1" path="res://Assets/Skins/default/side/thigh.png" id="6_thigh"]
+[ext_resource type="Texture2D" uid="uid://cqnv4s427rdp8" path="res://Assets/Skins/default/side/calf.png" id="7_calf"]
+[ext_resource type="Texture2D" uid="uid://yv7jtn61t6fe" path="res://Assets/Skins/default/side/foot.png" id="8_foot"]
+[ext_resource type="Texture2D" uid="uid://bf0y4k03jq4d7" path="res://Assets/Skins/default/side/hand_pistol_ready.png" id="9_hand_pistol"]
+
+[sub_resource type="SkeletonModification2DTwoBoneIK" id="SkeletonModification2DTwoBoneIK_shd1k"]
+target_nodepath = NodePath("../../../AimRoot/WeaponGroup/LeftHandTarget")
+joint_one_bone_idx = 7
+joint_one_bone2d_node = NodePath("Hip/Torso/UpperArmL")
+joint_two_bone_idx = 8
+joint_two_bone2d_node = NodePath("Hip/Torso/UpperArmL/ForearmL")
+
+[sub_resource type="SkeletonModificationStack2D" id="SkeletonModificationStack2D_5kd0c"]
+enabled = true
+modification_count = 1
+modifications/0 = SubResource("SkeletonModification2DTwoBoneIK_shd1k")
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_p1"]
-radius = 40.0
-height = 120.0
+radius = 17.0
+height = 104.28572
 
 [node name="Player" type="CharacterBody2D"]
+texture_filter = 1
 script = ExtResource("1_script")
 
 [node name="Visuals" type="Node2D" parent="."]
+texture_filter = 1
+scale = Vector2(3.3, 3.3)
 
-[node name="BodySprite" type="Sprite2D" parent="Visuals"]
-texture = ExtResource("2_icon")
-modulate = Color(0.96, 0.8, 0.6, 1)
+[node name="Skeleton" type="Skeleton2D" parent="Visuals"]
+unique_name_in_owner = true
+modification_stack = SubResource("SkeletonModificationStack2D_5kd0c")
 
-[node name="FeetSprite" type="Sprite2D" parent="Visuals"]
+[node name="Hip" type="Bone2D" parent="Visuals/Skeleton"]
+unique_name_in_owner = true
+position = Vector2(0, -12)
+rest = Transform2D(1, 0, 0, 1, 0, -10)
 
-[node name="LegsSprite" type="Sprite2D" parent="Visuals"]
+[node name="Torso" type="Bone2D" parent="Visuals/Skeleton/Hip"]
+unique_name_in_owner = true
+position = Vector2(0, -23)
+rest = Transform2D(1, 0, 0, 1, 0, -20)
 
-[node name="ChestSprite" type="Sprite2D" parent="Visuals"]
+[node name="TorsoSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso"]
+texture_filter = 1
+scale = Vector2(0.0974121, 0.11420157)
+texture = ExtResource("3_torso")
 
-[node name="HeadSprite" type="Sprite2D" parent="Visuals"]
+[node name="Neck" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso"]
+unique_name_in_owner = true
+position = Vector2(1, -32)
+rest = Transform2D(1, 0, 0, 1, 0, -45)
 
-[node name="WeaponPivot" type="Node2D" parent="Visuals"]
+[node name="NeckSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/Neck"]
+texture_filter = 1
+position = Vector2(0.28124923, -1)
+scale = Vector2(0.037963867, 0.038285352)
+texture = ExtResource("3_shd1k")
 
-[node name="Sprite2D" type="Sprite2D" parent="Visuals/WeaponPivot"]
-position = Vector2(40, 0)
-scale = Vector2(0.5, 0.2)
-texture = ExtResource("2_icon")
-modulate = Color(0.3, 0.3, 0.3, 1)
+[node name="Head" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso/Neck"]
+unique_name_in_owner = true
+z_index = 2
+position = Vector2(0, -8)
+rotation = 0.08901179
+scale = Vector2(0.9999714, 0.99996966)
+skew = -4.041195e-05
+rest = Transform2D(1, 0, 0, 1, 0, -15)
+
+[node name="HeadSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/Neck/Head"]
+texture_filter = 1
+position = Vector2(0.069732666, 0.99758506)
+rotation = -0.06981317
+scale = Vector2(0.044200003, 0.043220542)
+texture = ExtResource("4_5kd0c")
+offset = Vector2(5, -30)
+
+[node name="UpperArmR" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso"]
+unique_name_in_owner = true
+z_index = -1
+position = Vector2(10.714286, -22.539682)
+rest = Transform2D(1, 0, 0, 1, 15, -40)
+
+[node name="UpperArmSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR"]
+texture_filter = 1
+position = Vector2(10.119047, 8.597883)
+rotation = -0.7330383
+scale = Vector2(0.057, 0.058)
+texture = ExtResource("4_uarm")
+offset = Vector2(0, 15)
+
+[node name="ForearmR" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR"]
+position = Vector2(14.583334, 13.22751)
+rotation = -1.8413223
+scale = Vector2(0.8000002, 0.8000002)
+rest = Transform2D(1, 0, 0, 1, 0, 30)
+
+[node name="ForearmSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR"]
+z_index = -1
+texture_filter = 1
+position = Vector2(3.9024377, 3.7309687)
+rotation = -0.42760566
+scale = Vector2(0.031800345, 0.030943483)
+texture = ExtResource("4_w6cdd")
+offset = Vector2(0, 15)
+
+[node name="HandR" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR"]
+unique_name_in_owner = true
+position = Vector2(11.752344, 16.82763)
+rotation = 0.08726645
+scale = Vector2(0.9999915, 0.9999915)
+rest = Transform2D(1, 0, 0, 1, 0, 25)
+
+[node name="HandSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR/HandR"]
+unique_name_in_owner = true
+z_index = 1
+texture_filter = 1
+position = Vector2(3.557573, 9.905161)
+rotation = 1.7453293
+scale = Vector2(0.026854979, 0.03925603)
+texture = ExtResource("9_hand_pistol")
+
+[node name="LeftHandTarget" type="Marker2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR/HandR"]
+position = Vector2(-0.026179444, 2.9998865)
+
+[node name="UpperArmL" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso"]
+z_index = -1
+texture_filter = 1
+position = Vector2(-10.606061, -21.969696)
+rotation = 2.8465908
+rest = Transform2D(1, 0, 0, 1, 5, -40)
+
+[node name="UpperArmSpriteL" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmL"]
+modulate = Color(0.901961, 0.901961, 0.901961, 1)
+z_index = 2
+position = Vector2(-9.019924, -2.0496314)
+rotation = -4.4453535
+scale = Vector2(0.061710097, 0.0609496)
+texture = ExtResource("4_uarm")
+offset = Vector2(0, 15)
+
+[node name="ForearmL" type="Bone2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmL"]
+texture_filter = 1
+position = Vector2(-19.381922, -5.541326)
+rotation = 0.20769419
+scale = Vector2(1.6000017, 0.99999505)
+rest = Transform2D(1, 0, 0, 1, 0, 30)
+
+[node name="ForearmSpriteL" type="Sprite2D" parent="Visuals/Skeleton/Hip/Torso/UpperArmL/ForearmL"]
+modulate = Color(0.901961, 0.901961, 0.901961, 1)
+z_index = 1
+position = Vector2(-6.7708535, -0.61035645)
+rotation = 1.6528268
+scale = Vector2(0.03576291, 0.024531106)
+texture = ExtResource("5_farm")
+offset = Vector2(0, 15)
+
+[node name="ThighR" type="Bone2D" parent="Visuals/Skeleton/Hip"]
+unique_name_in_owner = true
+position = Vector2(9.2261915, 21.259258)
+rest = Transform2D(1, 0, 0, 1, 15, 0)
+
+[node name="ThighSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighR"]
+z_index = -1
+position = Vector2(-2, -7)
+scale = Vector2(0.05729688, 0.065)
+texture = ExtResource("6_thigh")
+offset = Vector2(0, 20)
+
+[node name="CalfR" type="Bone2D" parent="Visuals/Skeleton/Hip/ThighR"]
+position = Vector2(-2, 11)
+rest = Transform2D(1, 0, 0, 1, 0, 45)
+
+[node name="CalfSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighR/CalfR"]
+z_index = -2
+position = Vector2(-2, 14.000002)
+scale = Vector2(0.03508377, 0.042301115)
+texture = ExtResource("7_calf")
+offset = Vector2(0, 20)
+
+[node name="FootR" type="Bone2D" parent="Visuals/Skeleton/Hip/ThighR/CalfR"]
+position = Vector2(-0.55952376, 34.56349)
+rest = Transform2D(1, 0, 0, 1, 0, 40)
+
+[node name="FootSprite" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighR/CalfR/FootR"]
+position = Vector2(2.0833337, -1.984128)
+scale = Vector2(0.059478242, 0.060621765)
+texture = ExtResource("8_foot")
+offset = Vector2(5, 5)
+
+[node name="ThighL" type="Bone2D" parent="Visuals/Skeleton/Hip"]
+unique_name_in_owner = true
+z_index = -1
+position = Vector2(-8, 19)
+rest = Transform2D(1, 0, 0, 1, -15, 0)
+
+[node name="ThighSpriteL" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighL"]
+modulate = Color(0.901961, 0.901961, 0.901961, 1)
+position = Vector2(1.9999999, -5)
+scale = Vector2(0.055786137, 0.06505082)
+texture = ExtResource("6_thigh")
+offset = Vector2(0, 20)
+
+[node name="CalfL" type="Bone2D" parent="Visuals/Skeleton/Hip/ThighL"]
+position = Vector2(0, 19)
+rest = Transform2D(1, 0, 0, 1, 0, 45)
+
+[node name="CalfSpriteL" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighL/CalfL"]
+modulate = Color(0.901961, 0.901961, 0.901961, 1)
+z_index = -1
+position = Vector2(-1.1920929e-07, 8.148146)
+scale = Vector2(0.04016114, 0.041920044)
+texture = ExtResource("7_calf")
+offset = Vector2(0, 20)
+
+[node name="FootL" type="Bone2D" parent="Visuals/Skeleton/Hip/ThighL/CalfL"]
+position = Vector2(-0.035714746, 28.232807)
+rest = Transform2D(1, 0, 0, 1, 0, 40)
+
+[node name="FootSpriteL" type="Sprite2D" parent="Visuals/Skeleton/Hip/ThighL/CalfL/FootL"]
+modulate = Color(0.901961, 0.901961, 0.901961, 1)
+position = Vector2(3.5714283, -1.6534396)
+scale = Vector2(0.06291949, 0.068105824)
+texture = ExtResource("8_foot")
+offset = Vector2(5, 5)
+
+[node name="AimRoot" type="Node2D" parent="Visuals"]
+unique_name_in_owner = true
+position = Vector2(0, -35)
+
+[node name="WeaponGroup" type="Node2D" parent="Visuals/AimRoot"]
+unique_name_in_owner = true
+
+[node name="WeaponPivot" type="Node2D" parent="Visuals/AimRoot/WeaponGroup"]
+unique_name_in_owner = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
+position = Vector2(1, -13)
+scale = Vector2(3.36, 4.22)
 shape = SubResource("CapsuleShape2D_p1")
 
 [node name="Camera2D" type="Camera2D" parent="."]
-zoom = Vector2(0.8, 0.8)

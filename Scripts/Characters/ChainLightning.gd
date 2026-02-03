@@ -25,6 +25,10 @@ func setup(start_pos: Vector2, first_target: Node2D) -> void:
 
 func zap_enemy(enemy: Node2D) -> void:
 	hit_enemies.append(enemy)
+	
+	# Play Zap Sound per hit
+	AudioManager.play_sfx("lightning_zap", 1.0 + randf_range(-0.1, 0.1))
+	
 	if enemy.has_method("take_damage"):
 		enemy.take_damage(damage)
 		
@@ -39,10 +43,13 @@ func chain_to_next(current_target: Node2D, bounces_left: int) -> void:
 		# Visuals
 		create_lightning_arc(current_target.global_position, nearest.global_position)
 		
+		# Delay for "Traveling" feel (Visual + Audio stagger)
+		await get_tree().create_timer(0.1).timeout
+		
 		# Damage
 		zap_enemy(nearest)
 		
-		# Recurse Instantly
+		# Recurse
 		chain_to_next(nearest, bounces_left - 1)
 
 func find_nearest_enemy(from_pos: Vector2) -> Node2D:
