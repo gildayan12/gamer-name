@@ -11,29 +11,19 @@ signal shield_updated(current, max_val)
 @export var input_enabled: bool = true # Control flag for Menus/Cutscenes
 
 @onready var visuals: Node2D = $Visuals
-@onready var skeleton: Skeleton2D = %Skeleton
-@onready var torso_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/TorsoSprite
-@onready var neck_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/Neck/NeckSprite
-@onready var head_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/Neck/Head/HeadSprite
-
-# Skeletal Sprites (Right Side)
-@onready var upper_arm_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmR/UpperArmSprite
-@onready var forearm_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmR/ForearmR/ForearmSprite
-@onready var thigh_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/ThighSprite
-@onready var calf_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/CalfR/CalfSprite
-@onready var foot_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighR/CalfR/FootR/FootSprite
-
-# Skeletal Sprites (Left Side)
-@onready var upper_arm_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmL/UpperArmSpriteL
-@onready var forearm_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/Torso/UpperArmL/ForearmL/ForearmSpriteL
-@onready var thigh_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/ThighSpriteL
-@onready var calf_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/CalfL/CalfSpriteL
-@onready var foot_l_sprite: Sprite2D = $Visuals/Skeleton/Hip/ThighL/CalfL/FootSpriteL
-
 @onready var aim_root: Node2D = $Visuals/AimRoot
 @onready var weapon_group: Node2D = $Visuals/AimRoot/WeaponGroup
 # weapon_pivot removed. Use weapon_group instead. 
 @onready var weapon_pivot: Node2D = $Visuals/AimRoot/WeaponGroup/WeaponPivot
+
+# 3D Visuals
+@onready var player_model_3d: Node3D = %PlayerModel
+var anim_player: AnimationPlayer = null # Will be found dynamically
+var current_anim_state: String = ""
+var combat_cooldown: float = 0.0
+const COMBAT_TIMEOUT: float = 3.0
+
+
 # --- 8-DIRECTION SYSTEM ---
 enum BodyView { FRONT, BACK, SIDE }
 var current_body_view: BodyView = BodyView.SIDE
@@ -104,6 +94,8 @@ var magazine_size_modifier: int = 0
 var ability_count_modifier: int = 0
 var ability_radius_modifier: float = 1.0
 var max_shield_modifier: float = 1.0 
+# Rotation offset for the 3D model (180 deg is common if model faces Z+)
+var model_rotation_offset: float = PI 
 
 # Combat Stats
 const FIRE_RATE_SWORD: float = 0.95
@@ -116,8 +108,9 @@ var active_sword: Area2D = null
 var attack_cooldown: float = 0.0
 
 # Gun State (Ammo)
-var max_ammo: int = 8
-var current_ammo: int = 8
+@export var max_ammo: int = 8
+@export var current_ammo: int = 8
+var debug_label: Label = null
 var is_reloading: bool = false
 var is_aiming_grenade: bool = false
 
@@ -200,64 +193,103 @@ func _ready() -> void:
 	apply_global_stats()
 	
 	# Load the default skin (8-direction system)
-	load_skin(current_skin_name)
+	# Load the default skin (8-direction system)
+	# load_skin(current_skin_name) # DISABLED FOR 3D MIGRATION
 
 	# FORCE LEFT ARM IK
-	# call_deferred("setup_left_arm_ik")
+	# call_deferred("setup_left_arm_ik") # DISABLED FOR 3D MIGRATION
 
-func setup_left_arm_ik() -> void:
-	if not skeleton: return
+	# FIND ANIMATION PLAYER & LOAD EXTRAS
+	find_animation_player()
+	load_external_animations()
 	
-	# 1. Ensure we have a target
-	var target = skeleton.find_child("LeftHandTarget", true, false)
-	if not target:
-		print("IK ERROR: LeftHandTarget not found in skeleton!")
-		return
-		
-	print("IK: Found target at ", target.name)
-	
-	# 2. Get Modification Stack
-	var stack = skeleton.get_modification_stack()
-	if not stack:
-		stack = SkeletonModificationStack2D.new()
-		skeleton.set_modification_stack(stack)
-		
-	# 3. Setup TwoBoneIK
-	# Check if we already have one, or make new
-	var mod_count = stack.get_modification_count()
-	var ik_mod: SkeletonModification2DTwoBoneIK = null
-	
-	if mod_count > 0:
-		var existing = stack.get_modification(0)
-		if existing is SkeletonModification2DTwoBoneIK:
-			ik_mod = existing
-	
-	if not ik_mod:
-		ik_mod = SkeletonModification2DTwoBoneIK.new()
-		stack.add_modification(ik_mod)
-		
-	# 4. Configure Bones (Use NodePaths relative to Skeleton)
-	# Bone Indices usually: 7=UpperArmL, 8=ForearmL (Check your import if different, but usually stable)
-	# Easier to set by Name if possible, but Resource uses paths/indices.
-	
-	# Let's trust the current scene setup or set explicitly
-	var upper_node = skeleton.find_child("UpperArmL", true, false)
-	var lower_node = skeleton.find_child("ForearmL", true, false)
-	
-	if not upper_node or not lower_node: 
-		print("IK ERROR: Left Arm Bones not found!")
-		return
+	# Create Debug Label
+	debug_label = Label.new()
+	add_child(debug_label)
+	debug_label.position = Vector2(-50, -150)
+	debug_label.modulate = Color.YELLOW
+	debug_label.text = "DEBUG INITIALIZED"
 
-	ik_mod.target_nodepath = skeleton.get_path_to(target)
-	ik_mod.set_joint_one_bone2d_node(skeleton.get_path_to(upper_node))
-	ik_mod.set_joint_two_bone2d_node(skeleton.get_path_to(lower_node))
+func find_animation_player() -> void:
+	# Attempt to find the AnimationPlayer that Godot creates for GLB imports
+	if player_model_3d:
+		# Search children recursively
+		var candidate = player_model_3d.find_child("AnimationPlayer", true, false)
+		if candidate is AnimationPlayer:
+			anim_player = candidate
+			print("3D Animation: Found AnimationPlayer!")
+			
+			# FORCE LOOP & RENAME Base Animation to "run"
+			for anim_name in anim_player.get_animation_list():
+				var anim = anim_player.get_animation(anim_name)
+				anim.loop_mode = Animation.LOOP_LINEAR
+				
+				# Debug: Print first track path of base anim
+				if anim.get_track_count() > 0:
+					print("BASE ANIM TRACK 0: ", anim.track_get_path(0))
+				
+				# Rename to "run" if it's the mixamo default
+				if anim_name != "run":
+					var library = anim_player.get_animation_library("")
+					library.rename_animation(anim_name, "run")
+					print("Renamed Base Anim '", anim_name, "' to 'run'")
+
+
+func load_external_animations() -> void:
+	if not anim_player: return
 	
-	stack.enabled = true
-	ik_mod.enabled = true
+	# List of files to steal animations from
+	var extra_files = {
+		"idle": "res://Assets/Characters/GunnerAnimations/Player_Idle.glb",
+		"idle_combat": "res://Assets/Characters/GunnerAnimations/Player_CombatIdle.glb",
+		"run_back": "res://Assets/Characters/GunnerAnimations/Player_Back.glb",
+		"strafe_left": "res://Assets/Characters/GunnerAnimations/Player_StrafeLeft.glb", # Updated to GLB
+		"strafe_right": "res://Assets/Characters/GunnerAnimations/Player_StrafeRight.glb",
+		"roll": "res://Assets/Characters/GunnerAnimations/Player_Roll.glb",
+	}
 	
-	# Force an update
-	skeleton.execute_modifications(0.0, 0)
-	print("IK: Left Arm IK Force-Enabld via Script")
+	var library = anim_player.get_animation_library("") # Get default library
+	
+	for anim_name in extra_files:
+		var path = extra_files[anim_name]
+		if not FileAccess.file_exists(path):
+			print("Warning: Missing Animation File: ", path)
+			continue
+			
+		# Instantiate the scene to get the player
+		var packed_scene = load(path)
+		if packed_scene:
+			var temp_node = packed_scene.instantiate()
+			var temp_anim_player = temp_node.find_child("AnimationPlayer", true, false)
+			if temp_anim_player:
+				var anim_list = temp_anim_player.get_animation_list()
+				if anim_list.size() > 0:
+					var source_anim_name = anim_list[0] # Usually "mixamo_com"
+					var anim_resource = temp_anim_player.get_animation(source_anim_name)
+					
+					# Force Loop (EXCEPT for Roll/One-shots)
+					if anim_name == "roll":
+						anim_resource.loop_mode = Animation.LOOP_NONE
+					else:
+						anim_resource.loop_mode = Animation.LOOP_LINEAR
+						
+					# Debug: Print first track path of imported anim
+					if anim_resource.get_track_count() > 0:
+						print("IMPORTED ANIM ", anim_name, " TRACK 0: ", anim_resource.track_get_path(0))
+					
+					print("Anim Duration [", anim_name, "]: ", anim_resource.length) # DEBUG LENGTH
+					
+					# Add to our main player
+					library.add_animation(anim_name, anim_resource)
+					print("Imported Animation: ", anim_name, " Loop: ", anim_resource.loop_mode)
+				else:
+					print("ERROR: No animations found in ", path)
+			else:
+				print("ERROR: No AnimationPlayer found in ", path)
+			
+			temp_node.queue_free() # Cleanup
+
+# ... (Commenting out entire function implicit via logic, but user can delete)
 	
 func apply_global_stats() -> void:
 	# 1. DMG (Strength)
@@ -273,8 +305,7 @@ func apply_global_stats() -> void:
 	cooldown_modifier -= cdr_from_spd
 	dodge_cooldown_modifier -= cdr_from_spd # Also reduce Dodge/Shield cooldowns
 	
-	# Clamp CDR
-	cooldown_modifier = max(cooldown_modifier, 0.2)
+	# Clamp CDRד	cooldown_modifier = max(cooldown_modifier, 0.2)
 	dodge_cooldown_modifier = max(dodge_cooldown_modifier, 0.2)
 
 	# 3. Vitality (Intelligence -> Max HP)
@@ -582,93 +613,177 @@ func _physics_process(delta: float) -> void:
 		move_and_slide() 
 	else:
 		movement()
-		update_visuals(delta)
 		move_and_slide()
+		
+	# Update Visuals ALWAYS (so we can play Roll anim during dodge)
+	update_visuals(delta)
 
 # --- PROCEDURAL ANIMATION SYSTEM REMOVED ---
 
 
 
 func update_visuals(_delta: float) -> void:
-	# --- 8-DIRECTION SYSTEM ---
 	var mouse_pos = get_global_mouse_position()
 	var aim_dir = (mouse_pos - global_position).normalized()
-	var aim_angle = aim_dir.angle()  # -PI to PI
-	var aim_deg = rad_to_deg(aim_angle)
 	
-	# 1. DETERMINE BODY VIEW (Front/Back/Side)
-	var new_view = get_body_view_from_aim(aim_deg)
+	# --- HYBRID 3D ROTATION ---
+	# Calculate angle. atan2(y, x) gives angle from X axis.
+	var angle_2d = aim_dir.angle()
 	
-	if new_view != current_body_view:
-		current_body_view = new_view
-		apply_skin_view(new_view)
-	
-	# 2. FLIP CHARACTER VISUALS
-	if visuals:
-		if aim_dir.x < 0:
-			visuals.scale.x = -abs(visuals.scale.x)
+	# HYBRID 3D ROTATION ---
+	if player_model_3d:
+		var target_rot_y = 0.0
+		
+		# If Dodging: Face Movement Direction (so we roll forward into the dash)
+		if is_dodging and velocity.length() > 10.0:
+			target_rot_y = -velocity.angle() + (PI / 2) + model_rotation_offset
 		else:
-			visuals.scale.x = abs(visuals.scale.x)
-	
-	# 3. ROTATE AIM ROOT
+			# Normal: Face Aim Direction
+			target_rot_y = -angle_2d + (PI / 2) + model_rotation_offset
+		
+		# Smoothing (Lerp Angle handles the -PI/PI wrap correctly)
+		player_model_3d.rotation.y = lerp_angle(player_model_3d.rotation.y, target_rot_y, _delta * 15.0)
+
+		
+		# Update Face Marker Visuals
+		var marker = player_model_3d.find_child("FaceMarker", true, false)
+		if marker:
+			marker.visible = false # Hide marker in game
+
+	# DEBUG UI UPDATE
+	if debug_label:
+		var deg = rad_to_deg(aim_dir.angle())
+		var move_deg = rad_to_deg(velocity.angle())
+		var diff = rad_to_deg(angle_difference(aim_dir.angle(), velocity.angle()))
+		debug_label.text = "Aim: %.1f\nMove: %.1f\nDiff: %.1f\nAnim: %s" % [deg, move_deg, diff, current_anim_state]
+
+	# --- ANIMATION STATE ---
+	if anim_player:
+		# 1. Update Combat Timer
+		if velocity.length() > 10.0 or Input.is_action_just_pressed("attack"): # Using "attack" instead of "shoot" to match input map
+			combat_cooldown = COMBAT_TIMEOUT
+		elif combat_cooldown > 0:
+			combat_cooldown -= _delta
+			
+		var target_anim = "idle" 
+		
+		# 2. State Selection
+		if is_dodging:
+			target_anim = "roll"
+		elif velocity.length() > 50.0:
+			# Directional Logic
+			target_anim = get_directional_anim()
+		else:
+			# Idle Logic
+			if combat_cooldown > 0:
+				target_anim = "idle_combat"
+			else:
+				target_anim = "idle" # Relaxed
+		
+		# 3. Play Animation
+		play_anim_safe(target_anim)
+
+	# 3. ROTATE AIM ROOT (Guns)
 	if aim_root:
 		aim_root.look_at(mouse_pos)
 	
-	# 4. LAYER SWAPPING (Weapon Behind/Front)
+	# 4. LAYER SWAPPING (Weapon Behind/Front of 3D Model)
 	if weapon_group:
 		if aim_dir.y < -0.20:  # Looking UP
 			weapon_group.z_index = -1
-		elif aim_dir.y > 0.20:  # Looking DOWN
+		else:
 			weapon_group.z_index = 0
 	
-	# 5. LEG ANIMATION - SKELETAL (TODO: implement procedural walk)
-	# Note: legs_sprite is now Node2D container, not AnimatedSprite2D
-	# Skeletal walk animation will be driven by the Skeleton2D bones
+	# 5. LEG ANIMATION - SKELETAL (Not needed for 3D)
 	pass
 
+func play_anim_safe(anim_name: String) -> void:
+	if current_anim_state == anim_name: return
+	
+	print("Playing Anim Request: ", anim_name) # DEBUG TRACE
+	
+	if anim_player.has_animation(anim_name):
+		current_anim_state = anim_name
+		
+		var speed = 1.0
+		if anim_name == "roll": speed = 2.0 # Speed up 1.18s anim to fit 0.6s dodge
+		
+		# Correct Arguments: name, blend, speed, from_end
+		anim_player.play(anim_name, 0.15, speed) 
+			
+	# Fallback if specific anim missing
+	elif anim_name == "idle_combat" and anim_player.has_animation("idle"):
+		play_anim_safe("idle")
+	elif anim_name == "roll" and anim_player.has_animation("run"):
+		play_anim_safe("run") # panic fallback
+
+func get_directional_anim() -> String:
+	# Calculate angle of Movement (Velocity)
+	var move_angle = velocity.angle()
+	
+	# Calculate angle of Aim (Mouse relative to Player)
+	var aim_angle = (get_global_mouse_position() - global_position).angle()
+	
+	# Get Difference (Shortest angle)
+	var diff = angle_difference(aim_angle, move_angle)
+	
+	# Normalize to degrees for easier logic (optional, but easier to read)
+	var deg = rad_to_deg(diff)
+	
+	# Quadrants (0 is Forward, +/- 180 is Backward)
+	if abs(deg) < 45:
+		return "run" # Forward (Within 45 degrees of aim)
+	elif abs(deg) > 135:
+		return "run_back" # Backward (Within 45 degrees of back)
+	elif deg > 0:
+		return "strafe_right" # Right (Warning: Check if this needs Inversion!)
+	else:
+		return "strafe_left" # Left
+
 ## Determine which body view to use based on aim angle (degrees)
 ## Determine which body view to use based on aim angle (degrees)
-func get_body_view_from_aim(_deg: float) -> BodyView:
-	return BodyView.SIDE # Always Side View for this system
+## Determine which body view to use based on aim angle (degrees)
+# func get_body_view_from_aim(_deg: float) -> BodyView:
+# 	return BodyView.SIDE # Always Side View for this system
 
 ## Apply textures for the current view from loaded skin
-func apply_skin_view(view: BodyView) -> void:
-	if current_skin_data.is_empty():
-		return
-	
-	# Mapping key is always "side" since we simplified the dict
-	var textures = current_skin_data.get("side", {})
-	
-	if textures.is_empty(): return
-	
-	# Apply to all sprite slots
-	if torso_sprite: torso_sprite.texture = textures.get("torso")
-	if neck_sprite: neck_sprite.texture = textures.get("neck")
-	if head_sprite: head_sprite.texture = textures.get("head")
-	
-	# Helper to apply texture if node exists
-	var apply = func(node: Sprite2D, key: String):
-		if node and textures.get(key):
-			node.texture = textures[key]
-			
-	apply.call(upper_arm_sprite, "upper_arm")
-	apply.call(forearm_sprite, "forearm")
-	apply.call(thigh_sprite, "thigh")
-	apply.call(calf_sprite, "calf")
-	apply.call(foot_sprite, "foot")
-	
-	# Apply to Left (Back) side
-	apply.call(upper_arm_l_sprite, "upper_arm")
-	apply.call(forearm_l_sprite, "forearm")
-	apply.call(thigh_l_sprite, "thigh")
-	apply.call(calf_l_sprite, "calf")
-	apply.call(foot_l_sprite, "foot")
+# func apply_skin_view(view: BodyView) -> void:
+# 	if current_skin_data.is_empty():
+# 		return
+# 	
+# 	# Mapping key is always "side" since we simplified the dict
+# 	var textures = current_skin_data.get("side", {})
+# 	
+# 	if textures.is_empty(): return
+# 	
+# 	# Apply to all sprite slots
+# 	if torso_sprite: torso_sprite.texture = textures.get("torso")
+# 	if neck_sprite: neck_sprite.texture = textures.get("neck")
+# 	if head_sprite: head_sprite.texture = textures.get("head")
+# 	
+# 	# Helper to apply texture if node exists
+# 	var apply = func(node: Sprite2D, key: String):
+# 		if node and textures.get(key):
+# 			node.texture = textures[key]
+# 			
+# 	apply.call(upper_arm_sprite, "upper_arm")
+# 	apply.call(forearm_sprite, "forearm")
+# 	apply.call(thigh_sprite, "thigh")
+# 	apply.call(calf_sprite, "calf")
+# 	apply.call(foot_sprite, "foot")
+# 	
+# 	# Apply to Left (Back) side
+# 	apply.call(upper_arm_l_sprite, "upper_arm")
+# 	apply.call(forearm_l_sprite, "forearm")
+# 	apply.call(thigh_l_sprite, "thigh")
+# 	apply.call(calf_l_sprite, "calf")
+# 	apply.call(foot_l_sprite, "foot")
 
 ## Load and apply a skin by name
-func load_skin(skin_name: String) -> void:
-	current_skin_name = skin_name
-	current_skin_data = SkinManager.load_skin(skin_name)
-	apply_skin_view(current_body_view)
+# func load_skin(skin_name: String) -> void:
+# 	current_skin_name = skin_name
+# 	current_skin_data = SkinManager.load_skin(skin_name)
+# 	apply_skin_view(current_body_view)
 
 # Input for Manual Reload and Single Clicks
 func _unhandled_input(event: InputEvent) -> void:
@@ -1056,7 +1171,7 @@ func perform_dodge() -> void:
 	var duration = 1.5 * dodge_cooldown_modifier
 	tw.tween_method(func(v): cooldown_updated.emit("dodge", v), 1.0, 0.0, duration)
 	
-	await get_tree().create_timer(0.3).timeout # Dash duration
+	await get_tree().create_timer(0.6).timeout # Dash duration (Increased for Animation)
 	
 	is_dodging = false
 	velocity = Vector2.ZERO

@@ -1,0 +1,59 @@
+[gd_scene load_steps=5 format=3 uid="uid://d3yq8v5pq4x5z"]
+
+[ext_resource type="Script" path="res://Scripts/Characters/Player3D_Test.gd" id="1_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_p1"]
+radius = 17.0
+height = 104.28572
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_3d"]
+radius = 0.5
+height = 2.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_debug"]
+albedo_color = Color(0.2, 0.6, 1.0, 1.0)
+
+[node name="Player3D" type="CharacterBody2D"]
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_p1")
+debug_color = Color(0, 0.6, 0.701961, 0.419608)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(1.5, 1.5)
+
+[node name="Visuals" type="SubViewportContainer" parent="."]
+offset_left = -128.0
+offset_top = -128.0
+offset_right = 128.0
+offset_bottom = 128.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Visuals"]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(256, 256)
+render_target_update_mode = 4
+
+[node name="World3D" type="Node3D" parent="Visuals/SubViewport"]
+
+[node name="Camera3D" type="Camera3D" parent="Visuals/SubViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 2, 3)
+projection = 1
+size = 4.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Visuals/SubViewport/World3D"]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 5, 0)
+shadow_enabled = true
+
+[node name="PlayerModel" type="Node3D" parent="Visuals/SubViewport/World3D"]
+unique_name_in_owner = true
+
+[node name="PlaceholderMesh" type="MeshInstance3D" parent="Visuals/SubViewport/World3D/PlayerModel"]
+mesh = SubResource("CapsuleMesh_3d")
+surface_material_override/0 = SubResource("StandardMaterial3D_debug")
+
+[node name="FaceMarker" type="CSGBox3D" parent="Visuals/SubViewport/World3D/PlayerModel/PlaceholderMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -0.4)
+size = Vector3(0.5, 0.2, 0.2)
