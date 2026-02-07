@@ -19,9 +19,14 @@ signal shield_updated(current, max_val)
 # 3D Visuals
 @onready var player_model_3d: Node3D = %PlayerModel
 var anim_player: AnimationPlayer = null # Will be found dynamically
+var current_skeleton: Skeleton3D = null # Cached reference to avoid stale lookups
 var current_anim_state: String = ""
 var combat_cooldown: float = 0.0
+
 const COMBAT_TIMEOUT: float = 3.0
+
+const SKULL_SKIN_PATH: String = "res://Scenes/player_skin_skull.tscn"
+const DEFAULT_SKIN_PATH: String = "res://Assets/Characters/GunnerAnimations/Player_Run.glb"
 
 
 # --- 8-DIRECTION SYSTEM ---
@@ -95,7 +100,8 @@ var ability_count_modifier: int = 0
 var ability_radius_modifier: float = 1.0
 var max_shield_modifier: float = 1.0 
 # Rotation offset for the 3D model (180 deg is common if model faces Z+)
-var model_rotation_offset: float = PI 
+# Rotation offset for the 3D model (0 deg if model faces Z+)
+var model_rotation_offset: float = 0.0 
 
 # Combat Stats
 const FIRE_RATE_SWORD: float = 0.95
@@ -194,52 +200,81 @@ func _ready() -> void:
 	
 	# Load the default skin (8-direction system)
 	# Load the default skin (8-direction system)
-	# load_skin(current_skin_name) # DISABLED FOR 3D MIGRATION
+	# Load the skin (Check GameLoop selection first)
+	if GameLoop.selected_skin_path != "":
+		load_skin_scene(GameLoop.selected_skin_path)
+	else:
+		load_skin_scene(SKULL_SKIN_PATH) # Default for now (testing phase)
 
 	# FORCE LEFT ARM IK
 	# call_deferred("setup_left_arm_ik") # DISABLED FOR 3D MIGRATION
 
-	# FIND ANIMATION PLAYER & LOAD EXTRAS
-	find_animation_player()
-	load_external_animations()
-	
-	# Create Debug Label
+	# create debug label
 	debug_label = Label.new()
 	add_child(debug_label)
 	debug_label.position = Vector2(-50, -150)
 	debug_label.modulate = Color.YELLOW
 	debug_label.text = "DEBUG INITIALIZED"
 
-func find_animation_player() -> void:
-	# Attempt to find the AnimationPlayer that Godot creates for GLB imports
-	if player_model_3d:
-		# Search children recursively
-		var candidate = player_model_3d.find_child("AnimationPlayer", true, false)
-		if candidate is AnimationPlayer:
-			anim_player = candidate
-			print("3D Animation: Found AnimationPlayer!")
-			
-			# FORCE LOOP & RENAME Base Animation to "run"
-			for anim_name in anim_player.get_animation_list():
-				var anim = anim_player.get_animation(anim_name)
-				anim.loop_mode = Animation.LOOP_LINEAR
-				
-				# Debug: Print first track path of base anim
-				if anim.get_track_count() > 0:
-					print("BASE ANIM TRACK 0: ", anim.track_get_path(0))
-				
-				# Rename to "run" if it's the mixamo default
-				if anim_name != "run":
-					var library = anim_player.get_animation_library("")
-					library.rename_animation(anim_name, "run")
-					print("Renamed Base Anim '", anim_name, "' to 'run'")
+func find_animation_player(root: Node = null) -> void:
+	# If no root specified, use the model container (Legacy behavior or verify existence)
+	if not root: root = player_model_3d
+	
+	if root:
+		# IMPORTANT: Remove any existing AnimationPlayer to avoid conflicts
+		# This ensures we use OUR animation library, not the embedded one from the GLB
+		var existing_player = root.find_child("AnimationPlayer", true, false)
+		if existing_player:
+			existing_player.queue_free()
+		
+		# Always create a fresh AnimationPlayer
+		print("Creating Manual AnimationPlayer...")
+		anim_player = AnimationPlayer.new()
+		anim_player.name = "AnimationPlayer"
+		root.add_child(anim_player)
+		anim_player.owner = root
+		print("- Manual AnimationPlayer Created.")
 
+func load_skin_scene(path: String) -> void:
+	if not player_model_3d:
+		push_error("Player Model 3D node not found!")
+		return
+		
+	# 1. Clear existing children (The old model)
+	for child in player_model_3d.get_children():
+		child.queue_free()
+		
+	# 2. Load and Instantiate new scene
+	var skin_scene = load(path)
+	if not skin_scene:
+		push_error("Failed to load skin scene: " + path)
+		return
+		
+	var skin_instance = skin_scene.instantiate()
+	player_model_3d.add_child(skin_instance)
+	print("Skin Loaded: ", path)
+	
+	# 3. Re-initialize Animation Player
+	find_animation_player(skin_instance) 
+	
+	# CACHE skeleton reference
+	current_skeleton = skin_instance.find_child("Skeleton3D", true, false)
+	if not current_skeleton:
+		current_skeleton = skin_instance.find_child("GeneralSkeleton", true, false)
+	
+	if current_skeleton:
+		print("Skeleton cached: ", current_skeleton.get_bone_count(), " bones")
+	else:
+		print("ERROR: No skeleton found!")
+	
+	load_external_animations()
 
 func load_external_animations() -> void:
 	if not anim_player: return
 	
 	# List of files to steal animations from
 	var extra_files = {
+		"run": "res://Assets/Characters/GunnerAnimations/Player_Run.glb", # Add RUN because main GLB is empty
 		"idle": "res://Assets/Characters/GunnerAnimations/Player_Idle.glb",
 		"idle_combat": "res://Assets/Characters/GunnerAnimations/Player_CombatIdle.glb",
 		"run_back": "res://Assets/Characters/GunnerAnimations/Player_Back.glb",
@@ -249,6 +284,10 @@ func load_external_animations() -> void:
 	}
 	
 	var library = anim_player.get_animation_library("") # Get default library
+	if not library:
+		print("Creating new Animation Library for manual player.")
+		library = AnimationLibrary.new()
+		anim_player.add_animation_library("", library)
 	
 	for anim_name in extra_files:
 		var path = extra_files[anim_name]
@@ -272,16 +311,10 @@ func load_external_animations() -> void:
 						anim_resource.loop_mode = Animation.LOOP_NONE
 					else:
 						anim_resource.loop_mode = Animation.LOOP_LINEAR
-						
-					# Debug: Print first track path of imported anim
-					if anim_resource.get_track_count() > 0:
-						print("IMPORTED ANIM ", anim_name, " TRACK 0: ", anim_resource.track_get_path(0))
-					
-					print("Anim Duration [", anim_name, "]: ", anim_resource.length) # DEBUG LENGTH
 					
 					# Add to our main player
 					library.add_animation(anim_name, anim_resource)
-					print("Imported Animation: ", anim_name, " Loop: ", anim_resource.loop_mode)
+					print("Imported: ", anim_name)
 				else:
 					print("ERROR: No animations found in ", path)
 			else:
@@ -682,6 +715,10 @@ func update_visuals(_delta: float) -> void:
 		
 		# 3. Play Animation
 		play_anim_safe(target_anim)
+	else:
+		if Engine.get_process_frames() % 60 == 0:
+			# print("CRITICAL: AnimPlayer is NULL in Physics Process!") 
+			pass
 
 	# 3. ROTATE AIM ROOT (Guns)
 	if aim_root:
@@ -702,14 +739,35 @@ func play_anim_safe(anim_name: String) -> void:
 	
 	print("Playing Anim Request: ", anim_name) # DEBUG TRACE
 	
+	if not anim_player:
+		print("ERROR: anim_player is null!")
+		return
+	
 	if anim_player.has_animation(anim_name):
 		current_anim_state = anim_name
 		
 		var speed = 1.0
 		if anim_name == "roll": speed = 2.0 # Speed up 1.18s anim to fit 0.6s dodge
 		
+		# DEBUG: Check AnimationPlayer state before playing
+		print("  AnimPlayer active: ", anim_player.active, " | is_playing: ", anim_player.is_playing())
+		print("  AnimPlayer root_node: ", anim_player.root_node, " | resolved to: ", anim_player.get_node_or_null(anim_player.root_node))
+		
 		# Correct Arguments: name, blend, speed, from_end
-		anim_player.play(anim_name, 0.15, speed) 
+		anim_player.play(anim_name, 0.15, speed)
+		
+		# DEBUG: After playing, verify state
+		print("  After play() -> current_animation: ", anim_player.current_animation, " | is_playing: ", anim_player.is_playing())
+		
+		# DEBUG: Check if bone pose is actually changing (use cached reference)
+		if current_skeleton:
+			var hip_idx = current_skeleton.find_bone("mixamorig_Hips")
+			if hip_idx >= 0:
+				print("  Hips bone pose position: ", current_skeleton.get_bone_pose_position(hip_idx))
+			else:
+				print("  ERROR: Bone mixamorig_Hips not found in cached skeleton!")
+		else:
+			print("  WARNING: current_skeleton is null!")
 			
 	# Fallback if specific anim missing
 	elif anim_name == "idle_combat" and anim_player.has_animation("idle"):

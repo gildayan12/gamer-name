@@ -17,6 +17,9 @@ var global_stats: Dictionary = {
 	"intelligence": 0
 }
 
+# Skin Data
+var selected_skin_path: String = ""
+
 func start_new_run(kit: Kit) -> void:
 	selected_kit = kit
 	current_wave = 1

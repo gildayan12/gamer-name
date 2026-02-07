@@ -58,11 +58,9 @@ func _on_customization_clicked() -> void:
 		# Should be disabled, but double check
 		message_label.text = "Press PLAY to create your character!"
 	else:
-		# Open Customization (Reusing Creator UI for now as they are similar)
 		# Or just open the dedicated screen if we kept it.
-		# For now, let's just use the Creator UI logic but adapted?
-		# Actually, let's keep it simple: Go to Creator UI but change button text
-		open_character_creator(true)
+	# Open the new Skin Locker Scene
+		get_tree().change_scene_to_file("res://Scenes/UI/CustomizationScreen.tscn")
 
 func _on_customization_locked_click() -> void:
 	# If user tries to click locked customization (handled via button wrapper or custom signal if disabled consumes input)
@@ -82,7 +80,7 @@ func connect_signals() -> void:
 		if is_first_run:
 			message_label.text = "Press PLAY to make your character!"
 		else:
-			open_character_creator(true) # Edit Mode
+			get_tree().change_scene_to_file("res://Scenes/UI/CustomizationScreen.tscn")
 	)
 	
 	# Kit Selection
